@@ -22,9 +22,7 @@
 - `07-nguon-code/` — **chưa code** cho đến khi chốt thiết kế
 
 ## Trạng thái hiện tại
-1. Nghiệp vụ đã chốt (Cổng 0)
-2. Đặc tả / UML / CSDL đang ở dạng tài liệu để **duyệt**
-3. **Chưa implement mã nguồn** — chờ xác nhận trong `00-ke-hoach/CHO-DUYET.md`
+1. Đặc tả / UML / CSDL đang ở dạng tài liệu để
 
 ## Cách duyệt
 Đọc lần lượt `00-ke-hoach/THONG-TIN-NGHIEP-VU.md` → `01-dac-ta/` → `02-uml/` → `03-csdl/` → ghi ý kiến sửa vào `CHO-DUYET.md`, rồi báo “chốt” để bắt đầu code.
