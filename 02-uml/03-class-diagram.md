@@ -120,8 +120,8 @@ classDiagram
   NguoiDung "1" --> "*" DoAn : huong_dan
   DoAn "1" --> "*" MocTienDo : thiet_lap
   DoAn "1" --> "*" CongViec : bao_gom
-  MocTienDo "0..1" --> "*" CongViec : phan_chia
-  NguoiDung "1" --> "*" CongViec : thuc_hien
+  MocTienDo "1" --> "*" CongViec : phan_chia
+  NguoiDung "0..1" --> "*" CongViec : thuc_hien
   NguoiDung "1" --> "*" CongViec : giao_viec
   NguoiDung "0..1" --> "*" CongViec : chot_tien_do
   CongViec "1" --> "*" BinhLuan : chua_thao_luan

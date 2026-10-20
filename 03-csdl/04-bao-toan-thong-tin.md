@@ -1,77 +1,93 @@
 # Kiểm tra Bảo toàn Thông tin (Lossless Join)
 
 ## 1. Mục tiêu chứng minh
-Sau khi phân rã lược đồ quan hệ tổng quát Q thành các lược đồ con R1, R2, R3, R4, phép nối tự nhiên (Natural Join) của các lược đồ này phải **không làm mất mát thông tin và không sinh ra các bộ thừa giả mạo (spurious tuples)**:
+Sau khi phân rã lược đồ quan hệ tổng quát Q thành tập các lược đồ con khớp hoàn toàn với thiết kế CSDL vật lý (SQL DDL và ERD):
+- `R1` (CONG_VIEC): {A, B, C, D, E, G, P, U, W}
+- `R2` (MOC): {U, V, H}
+- `R3` (DO_AN): {H, I, J, K}
+- `R4` (NHOM): {M, N, H} *(Khóa chính M, ma_do_an H là UNIQUE)*
+- `R5` (NGUOI_DUNG): {ma_nguoi_dung, ho_ten, email} *(Gộp Người thực hiện P, S, T và Giảng viên K, L)*
+- `R6` (THANH_VIEN_NHOM): {M, P, R}
 
-R1 ⋈ R2 ⋈ R3 ⋈ R4 = Q
+Phép nối tự nhiên (Natural Join) của tất cả các lược đồ con này phải **không làm mất mát thông tin và không sinh ra các bộ thừa giả mạo (Spurious Tuples)**:
+
+R1 ⋈ R2 ⋈ R3 ⋈ R4 ⋈ R5 ⋈ R6 = Q
+
+> **Ghi chú về Denormalization trong CSDL vật lý:**  
+> Trong bảng `cong_viec` của SQL/ERD, ta lưu thêm thuộc tính `ma_do_an` (H). Đây là kỹ thuật phi chuẩn hóa (Denormalization) có chủ ý nhằm giúp câu lệnh truy vấn công việc theo đồ án đạt hiệu năng cao mà không cần JOIN qua `moc_tien_do`. Về mặt lý thuyết chuẩn hóa thuần túy, R1 chỉ cần thuộc tính `ma_moc` (U) vì đã có `U → H`.
 
 ---
 
-## 2. Ký hiệu các quan hệ phân rã
-Dựa trên bảng ký hiệu thuộc tính từ [02-phu-thuoc-ham.md](file:///d:/QTCuaTruc/DuAn/File%20MauDoDan/892818388Bieu%20mau%20Do%20an%20Co%20so/Bieu%20mau%20Do%20an%20Co%20so/He-thong-quan-ly-cong-viec-va-tien-do-do-an-nhom/03-csdl/02-phu-thuoc-ham.md), xét phép phân rã gồm 4 lược đồ con từ Q:
+## 2. Ký hiệu các lược đồ con phân rã theo thiết kế SQL/ERD
 
-- R1 = {A, B, C, D, E, G, H, P, U, W} (Tương đương bảng `CONG_VIEC`)
-- R2 = {H, I, J, K} (Tương đương bảng `DO_AN`)
-- R3 = {P, S, T} (Tương đương bảng `NGUOI_DUNG` đại diện cho người thực hiện)
-- R4 = {U, V, H} (Tương đương bảng `MOC_TIEN_DO`)
+- **R1 (CONG_VIEC):** {A, B, C, D, E, G, P, U, W} — Khóa chính: A
+- **R2 (MOC):** {U, V, H} — Khóa chính: U
+- **R3 (DO_AN):** {H, I, J, K} — Khóa chính: H
+- **R4 (NHOM):** {M, N, H} — Khóa chính: M; Khóa duy nhất (UNIQUE): H
+- **R5 (NGUOI_DUNG):** {ma_nguoi_dung, ho_ten, email} — Khóa chính: ma_nguoi_dung; Khóa dự tuyển: email
+- **R6 (THANH_VIEN_NHOM):** {M, P, R} — Khóa chính: Cặp (M, P)
 
 ---
 
 ## 3. Chứng minh bằng Định lý Phân rã Nhị phân lặp
-**Định lý:** Phép phân rã một lược đồ quan hệ R thành hai lược đồ RA và RB là bảo toàn thông tin đối với tập phụ thuộc hàm F khi và chỉ khi:  
+**Định lý:** Phép phân rã một lược đồ quan hệ R thành hai lược đồ con RA và RB là bảo toàn thông tin đối với tập phụ thuộc hàm F khi và chỉ khi:  
 `(RA ∩ RB → RA) thuộc F+`  hoặc  `(RA ∩ RB → RB) thuộc F+`  
-*(Nghĩa là giao của hai tập thuộc tính phải là một siêu khóa của ít nhất một trong hai lược đồ con).*
+*(Nghĩa là tập thuộc tính giao nhau phải là một siêu khóa của ít nhất một trong hai lược đồ con).*
 
-### Áp dụng chứng minh từng bước:
+### Các bước chứng minh tuần tự khớp với thiết kế CSDL:
 
-#### Bước 1: Xét cặp lược đồ con (R1, R2)
-- Giao hai tập thuộc tính:
-  `R1 ∩ R2 = {A, B, C, D, E, G, H, P, U, W} ∩ {H, I, J, K} = {H}`
+#### Bước 1: Nối R1 (CONG_VIEC) và R2 (MOC) qua thuộc tính U
+- Giao thuộc tính:  
+  `R1 ∩ R2 = {A, B, C, D, E, G, P, U, W} ∩ {U, V, H} = {U}`
+- Xét thuộc tính chung U (`ma_moc`):
+  - Ta có phụ thuộc hàm `f7: U → V, H`, suy ra `U → R2`.
+  - Vì U là khóa chính của R2 (MOC), nên `{U}` là siêu khóa của R2.
+- **Kết luận Bước 1:** Phép nối (R1 ⋈ R2) là **bảo toàn thông tin (Lossless Join)**.  
+  Đặt R12 = R1 ∪ R2 = {A, B, C, D, E, G, H, P, U, V, W}.
+
+#### Bước 2: Nối tiếp kết quả R12 với R3 (DO_AN) qua thuộc tính H
+- Giao thuộc tính:  
+  `R12 ∩ R3 = {A, B, C, D, E, G, H, P, U, V, W} ∩ {H, I, J, K} = {H}`
 - Xét thuộc tính chung H (`ma_do_an`):
-  - Từ phụ thuộc hàm f2: H → I, J, K, ta suy ra:
-    `H → H, I, J, K`  =>  `H → R2`
-  - Vì H là khóa chính của R2, nên `R1 ∩ R2` là một siêu khóa của R2.
-- **Kết luận Bước 1:** Phép phân rã (R1, R2) là **bảo toàn thông tin (Lossless Join)**.  
-  Đặt R12 = R1 ∪ R2 = {A, B, C, D, E, G, H, I, J, K, P, U, W}.
+  - Ta có phụ thuộc hàm `f2: H → I, J, K`, suy ra `H → R3`.
+  - Vì H là khóa chính của R3 (DO_AN), nên `{H}` là siêu khóa của R3.
+- **Kết luận Bước 2:** Phép nối tiếp là **bảo toàn thông tin (Lossless Join)**.  
+  Đặt R123 = R12 ∪ R3 = {A, B, C, D, E, G, H, I, J, K, P, U, V, W}.
 
-#### Bước 2: Nối tiếp kết quả R12 với R3
-- Giao hai tập thuộc tính:
-  `R12 ∩ R3 = {A, B, C, D, E, G, H, I, J, K, P, U, W} ∩ {P, S, T} = {P}`
-- Xét thuộc tính chung P (`ma_nguoi_thuc_hien`):
-  - Từ phụ thuộc hàm f4: P → S, T, ta suy ra:
-    `P → P, S, T`  =>  `P → R3`
-  - Vì P là khóa chính của R3, nên `R12 ∩ R3` là một siêu khóa của R3.
-- **Kết luận Bước 2:** Bước phân rã nối tiếp là **bảo toàn thông tin (Lossless Join)**.  
-  Đặt R123 = R12 ∪ R3.
+#### Bước 3: Nối tiếp kết quả R123 với R4 (NHOM) qua thuộc tính H
+- Giao thuộc tính:  
+  `R123 ∩ R4 = { ... } ∩ {M, N, H} = {H}`
+- Xét thuộc tính chung H (`ma_do_an`):
+  - Trong bảng `NHOM(M, N, H)`, vì ràng buộc `UNIQUE(H)` (mô hình 1 đồ án = 1 nhóm), ta có phụ thuộc hàm `H → M`. Kết hợp với `M → N`, suy ra `H → M, N` tức là `H → R4`.
+  - Do đó, `{H}` là một siêu khóa (Candidate Key) của R4 (NHOM).
+- **Kết luận Bước 3:** Phép nối tiếp là **bảo toàn thông tin (Lossless Join)**.  
+  Đặt R1234 = R123 ∪ R4 = {A, B, C, D, E, G, H, I, J, K, M, N, P, U, V, W}.
 
-#### Bước 3: Nối tiếp kết quả R123 với R4
-- Giao hai tập thuộc tính:
-  `R123 ∩ R4 = (R1 ∪ R2 ∪ R3) ∩ {U, V, H} = {U, H}`
-- Xét tập thuộc tính chung {U, H}:
-  - Từ phụ thuộc hàm f6: U → V, H, ta suy ra:
-    `U → U, V, H`  =>  `U → R4`  =>  `{U, H} → R4`
-  - Vì U (`ma_moc`) là khóa chính của R4, nên giao thuộc tính là siêu khóa của R4.
-- **Kết luận Bước 3:** Bước phân rã này hoàn toàn **bảo toàn thông tin (Lossless Join)**.
+#### Bước 4: Nối tiếp kết quả R1234 với R6 (THANH_VIEN_NHOM) qua cặp {M, P}
+- Giao thuộc tính:  
+  `R1234 ∩ R6 = { ... } ∩ {M, P, R} = {M, P}`
+- Xét cặp thuộc tính chung {M, P}:
+  - Ta có phụ thuộc hàm `f8: (M, P) → R`, suy ra `{M, P} → R6`.
+  - Vì (M, P) là khóa chính của R6 (THANH_VIEN_NHOM), nên `{M, P}` là siêu khóa của R6.
+- **Kết luận Bước 4:** Phép nối tiếp là **bảo toàn thông tin (Lossless Join)**.  
+  Đặt R12346 = R1234 ∪ R6 = {A, B, C, D, E, G, H, I, J, K, M, N, P, R, U, V, W}.
 
----
-
-## 4. Chứng minh bằng Bảng Phương pháp Tableau
-Xây dựng ma trận Tableau với 19 cột tương ứng với các thuộc tính từ A đến W và 4 hàng tương ứng với 4 lược đồ con:
-
-| Lược đồ | A | B | C | D | E | G | H | I | J | K | L | M | N | P | S | T | U | V | W |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| R1 | a1 | a2 | a3 | a4 | a5 | a6 | a7 | b1_8 | b1_9 | b1_10 | b1_11 | b1_12 | b1_13 | a14 | b1_15 | b1_16 | a17 | b1_18 | a19 |
-| R2 | b2_1 | b2_2 | b2_3 | b2_4 | b2_5 | b2_6 | a7 | a8 | a9 | a10 | b2_11 | b2_12 | b2_13 | b2_14 | b2_15 | b2_16 | b2_17 | b2_18 | b2_19 |
-| R3 | b3_1 | b3_2 | b3_3 | b3_4 | b3_5 | b3_6 | b3_7 | b3_8 | b3_9 | b3_10 | b3_11 | b3_12 | b3_13 | a14 | a15 | a16 | b3_17 | b3_18 | b3_19 |
-| R4 | b4_1 | b4_2 | b4_3 | b4_4 | b4_5 | b4_6 | a7 | b4_8 | b4_9 | b4_10 | b4_11 | b4_12 | b4_13 | b4_14 | b4_15 | b4_16 | a17 | a18 | b4_19 |
-
-- Áp dụng f2: H → I, J, K: Cột H có chung ký hiệu a7, do đó tại hàng R1, các giá trị b1_8, b1_9, b1_10 được thay thế bằng a8, a9, a10.
-- Áp dụng f4: P → S, T: Cột P có chung ký hiệu a14, do đó tại hàng R1, các giá trị b1_15, b1_16 được thay thế bằng a15, a16.
-- Áp dụng f6: U → V, H: Cột U có chung ký hiệu a17, do đó tại hàng R1, giá trị b1_18 được thay thế bằng a18.
-- **Kết quả:** Sau khi áp dụng các phụ thuộc hàm, hàng đầu tiên (R1) chứa toàn bộ các ký hiệu a1, a2, ..., a19.
-- Theo thuật toán Chase (Tableau Algorithm), phép phân rã này **chắc chắn bảo toàn thông tin**.
+#### Bước 5: Nối tiếp kết quả với R5 (NGUOI_DUNG)
+- Bảng `NGUOI_DUNG` trong hệ thống thực tế tổng quát hóa cả hai vai trò:
+  - Nối qua thuộc tính P (`ma_nguoi_thuc_hien`): Giao là `{P}`, là khóa chính của tài khoản người dùng, xác định duy nhất họ tên `S` và email `T`.
+  - Nối qua thuộc tính K (`ma_giang_vien`): Giao là `{K}`, là khóa chính của tài khoản người dùng, xác định duy nhất họ tên giảng viên `L`.
+- **Kết luận Bước 5:** Toàn bộ 20 thuộc tính của lược đồ ban đầu Q được phục hồi hoàn chỉnh và chính xác tuyệt đối:  
+  R1 ⋈ R2 ⋈ R3 ⋈ R4 ⋈ R5 ⋈ R6 = Q.
 
 ---
 
-## 5. Kết luận
-Lược đồ cơ sở dữ liệu sau khi chuẩn hóa hoàn toàn **đạt tính chất bảo toàn thông tin (Lossless Join)** cả về mặt giải tích nhị phân lẫn thuật toán Tableau, bảo đảm tính toàn vẹn dữ liệu tuyệt đối khi thực hiện các câu lệnh nối bảng (JOIN).
+## 4. Chứng minh bằng Thuật toán Tableau (Chase Algorithm)
+- Lập ma trận Tableau với 20 cột (A đến W) và các hàng tương ứng với các lược đồ con.
+- Lần lượt áp dụng các phụ thuộc hàm trong F:
+  1. Áp dụng `f7: U → V, H`: Tại hàng R1 (có a_U), cập nhật a_V và a_H.
+  2. Áp dụng `f2: H → I, J, K`: Tại hàng R1 (đã có a_H), cập nhật a_I, a_J, a_K.
+  3. Áp dụng `H → M` và `M → N` (qua NHOM): Tại hàng R1, cập nhật a_M và a_N.
+  4. Áp dụng `f8: (M, P) → R`: Tại hàng R1 (đã có a_M và a_P), cập nhật a_R.
+  5. Áp dụng thông tin người dùng qua P và K: Tại hàng R1, cập nhật a_S, a_T và a_L.
+- **Kết quả:** Hàng R1 biến đổi thành công thành dòng chứa toàn bộ các ký hiệu `a1, a2, ..., a20`.
+- **Kết luận:** Phép phân rã hoàn toàn **đạt tính chất bảo toàn thông tin (Lossless Join)**.

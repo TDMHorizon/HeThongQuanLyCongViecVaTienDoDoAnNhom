@@ -1,90 +1,127 @@
-# Quá trình Chuẩn hóa Cơ sở dữ liệu
+# Quá trình Chuẩn hóa Cơ sở dữ liệu (Chi tiết từ Bản tính toán)
 
 ## Bước 0: Lược đồ ban đầu chưa chuẩn hóa (UNF / Quan hệ rộng)
-Xét lược đồ quan hệ tổng quát Q và tập phụ thuộc hàm F đã được mô hình hóa trong [02-phu-thuoc-ham.md](file:///d:/QTCuaTruc/DuAn/File%20MauDoDan/892818388Bieu%20mau%20Do%20an%20Co%20so/Bieu%20mau%20Do%20an%20Co%20so/He-thong-quan-ly-cong-viec-va-tien-do-do-an-nhom/03-csdl/02-phu-thuoc-ham.md):
 
-Q = {A, B, C, D, E, G, H, I, J, K, L, M, N, P, S, T, U, V, W}
+Xét lược đồ quan hệ tổng quát Q và tập phụ thuộc hàm F đã xác định từ bài toán thực tế:
 
-Trong đó:
-- A: `ma_cong_viec` (Khóa chính)
-- B: `tieu_de_cv`, C: `trang_thai_cv`, D: `phan_tram_tien_do`, E: `trang_thai_khoa`, G: `han_chot_cv`
-- H: `ma_do_an`, I: `ten_do_an`, J: `loai_do_an`, K: `ma_giang_vien`, L: `ten_giang_vien`
-- M: `ma_nhom`, N: `ten_nhom`
-- P: `ma_nguoi_thuc_hien`, S: `ten_nguoi_thuc_hien`, T: `email_nguoi_thuc_hien`
-- U: `ma_moc`, V: `ten_moc`
-- W: `ma_nguoi_tao`
+* **Tập thuộc tính:**
+  ```text
+  Q = {A, B, C, D, E, G, H, I, J, K, L, M, N, P, R, S, T, U, V, W}
+  ```
+  *(Gồm 20 thuộc tính: A - Mã công việc, B - Tiêu đề, C - Trạng thái, D - % Tiến độ, E - Trạng thái khóa, G - Hạn chót, H - Mã đồ án, I - Tên đồ án, J - Loại đồ án, K - Mã giảng viên, L - Tên giảng viên, M - Mã nhóm, N - Tên nhóm, P - Mã người thực hiện, R - Vai trò trong nhóm, S - Tên người thực hiện, T - Email người thực hiện, U - Mã mốc tiến độ, V - Tên mốc, W - Mã người tạo).*
 
-Hạn chế: Lặp lại thông tin giảng viên (K, L), sinh viên (P, S, T), đồ án (H, I, J), nhóm (M, N) trên từng dòng công việc A, gây dư thừa và sai sót dữ liệu khi cập nhật.
+* **Tập phụ thuộc hàm F:**
+  ```text
+  F = {
+    f1: A  -> B, C, D, E, G, P, U, W
+    f2: H  -> I, J, K, M
+    f3: M  -> N, H
+    f4: P  -> S, T
+    f5: T  -> P
+    f6: K  -> L
+    f7: U  -> V, H
+    f8: MP -> R
+  }
+  ```
+
+* **Khóa chính của Q:**
+  * Thuộc tính nguồn: `N = A` (chỉ xuất hiện ở vế trái, không có ở vế phải).
+  * Bao đóng: `(A)+ = A B C D E G P U W S T V H I J K M N L R = Q`.
+  * Khóa chính: `k = A`. Tập thuộc tính không khóa: `K̄ = {B, C, D, E, G, H, I, J, K, L, M, N, P, R, S, T, U, V, W}`.
+
+* **Vấn đề tồn tại khi chưa chuẩn hóa trên bảng Q:**
+  - **Dư thừa dữ liệu (Redundancy):** Lặp lại tên đồ án (I), tên giảng viên (L), tên nhóm (N) trên mỗi dòng công việc A.
+  - **Bất thường khi cập nhật (Update Anomaly):** Đổi tên đề tài đồ án phải sửa trên tất cả các dòng công việc của đồ án đó.
+  - **Bất thường khi xóa (Deletion Anomaly):** Xóa hết công việc trong đồ án thì mất luôn thông tin đề tài và giảng viên hướng dẫn.
 
 ---
 
 ## 1. Dạng chuẩn 1 (1NF)
-- Định nghĩa: Một lược đồ quan hệ đạt 1NF nếu và chỉ nếu tất cả các miền giá trị của các thuộc tính đều chỉ chứa các giá trị nguyên tử (atomic value), không chứa thuộc tính đa trị hoặc nhóm lặp.
-- Đánh giá: Mỗi thuộc tính từ A đến W trong Q đều là các trường dữ liệu đơn lẻ (chuỗi, số, ngày giờ, đúng/sai), không có trường mảng hay lặp.
-- Kết luận: Lược đồ Q đã **đạt dạng chuẩn 1 (1NF)**.
+
+### 1.1. Cơ sở lý thuyết
+Một lược đồ quan hệ đạt 1NF nếu và chỉ nếu tất cả các miền giá trị của các thuộc tính đều chỉ chứa các giá trị nguyên tử (atomic value), không chứa thuộc tính đa trị (multivalued) hoặc nhóm lặp (repeating groups).
+
+### 1.2. Đánh giá:
+- Mọi thuộc tính từ A đến W trong Q đều là các trường dữ liệu đơn lẻ (chuỗi, số, ngày giờ, đúng/sai, mã định danh), không chứa mảng hay nhóm lặp.
+- **Kết luận:** Lược đồ Q **đạt dạng chuẩn 1 (1NF)**.
 
 ---
 
 ## 2. Dạng chuẩn 2 (2NF)
-- Định nghĩa: Một lược đồ quan hệ đạt 2NF nếu đã đạt 1NF và mọi thuộc tính không khóa đều phụ thuộc hàm **đầy đủ** vào khóa chính (nghĩa là không tồn tại thuộc tính không khóa nào phụ thuộc vào một tập con thực sự của khóa chính).
-- Phân tích: 
-  - Khóa chính của Q là thuộc tính đơn: Khóa chính = {A}.
-  - Do khóa chính chỉ có duy nhất 1 thuộc tính (A) nên không thể có tập con thực sự của khóa chính. Vì vậy, không tồn tại bất kỳ sự vi phạm phụ thuộc hàm từng phần nào.
-  - Tuy nhiên, trong Q tồn tại các thuộc tính không khóa phụ thuộc vào các thuộc tính không khóa khác (phụ thuộc bắc cầu), cần giải quyết ở 2NF và 3NF thông qua phép phân rã.
-- Phân rã sơ bộ theo các thực thể độc lập:
-  1. CONG_VIEC (Q1): {A, B, C, D, E, G, H, P, U, W} với khóa chính A.
-  2. DO_AN (Q2): {H, I, J, K} với khóa chính H.
-  3. NHOM (Q3): {M, N, H} với khóa chính M (ràng buộc H là UNIQUE).
-  4. NGUOI_DUNG (Người thực hiện): {P, S, T} với khóa chính P.
-  5. NGUOI_DUNG (Giảng viên): {K, L} với khóa chính K.
-  6. MOC_TIEN_DO (Q4): {U, V, H} với khóa chính U.
-- Kết luận: Mọi thuộc tính không khóa trong các quan hệ con đều phụ thuộc đầy đủ vào khóa của quan hệ đó -> **Đạt dạng chuẩn 2 (2NF)**.
+
+### 2.1. Cơ sở lý thuyết
+Một lược đồ quan hệ đạt 2NF nếu:
+1. Đã đạt dạng chuẩn 1 (1NF).
+2. Mọi thuộc tính không khóa đều phụ thuộc hàm **đầy đủ** vào khóa chính (nghĩa là không tồn tại thuộc tính không khóa nào phụ thuộc vào một tập con thực sự của khóa chính).
+
+### 2.2. Đánh giá:
+- Khóa chính của Q là thuộc tính đơn: `k = {A}`.
+- Do khóa chính chỉ có duy nhất 1 thuộc tính A, nên không tồn tại tập con thực sự của khóa chính.
+- Vì vậy không có phụ thuộc hàm từng phần vào khóa chính A.
+- **Kết luận:** Lược đồ Q **đạt dạng chuẩn 2 (2NF)**.
 
 ---
 
 ## 3. Dạng chuẩn 3 (3NF)
-- Định nghĩa: Một lược đồ quan hệ đạt 3NF nếu đã đạt 2NF và không có thuộc tính không khóa nào phụ thuộc **bắc cầu** vào khóa chính. Nghĩa là với mọi phụ thuộc hàm không tầm thường X → Y, thì:
-  - X phải là một siêu khóa (Superkey), hoặc
-  - Y là thuộc tính khóa (Prime attribute).
-- Kiểm tra loại bỏ phụ thuộc bắc cầu:
-  - Trong lược đồ ban đầu Q, ta có các phụ thuộc bắc cầu:
-    - A → H và H → I, J, K  => A → I, J, K (vi phạm 3NF vì H không phải siêu khóa của Q).
-    - A → P và P → S, T      => A → S, T (vi phạm 3NF vì P không phải siêu khóa của Q).
-    - H → K và K → L         => H → L (vi phạm 3NF vì K không phải siêu khóa của Q).
-    - A → U và U → V         => A → V (vi phạm 3NF vì U không phải siêu khóa của Q).
-  - Biện pháp tách:
-    - Loại bỏ I, J, K khỏi quan hệ công việc, chỉ giữ lại khóa ngoại H (`ma_do_an`).
-    - Loại bỏ S, T khỏi quan hệ công việc, chỉ giữ lại khóa ngoại P (`ma_nguoi_thuc_hien`).
-    - Loại bỏ L khỏi quan hệ đồ án, chỉ giữ lại khóa ngoại K (`ma_giang_vien`).
-    - Loại bỏ V khỏi quan hệ công việc, chỉ giữ lại khóa ngoại U (`ma_moc`).
-- Danh sách các lược đồ quan hệ hoàn chỉnh sau khi đạt 3NF:
-  1. `CONG_VIEC` = {A, B, C, D, E, G, H, P, U, W}  
-     *(Khóa chính: A — `ma_cong_viec`)*
-  2. `DO_AN` = {H, I, J, K}  
-     *(Khóa chính: H — `ma_do_an`)*
-  3. `NHOM` = {M, N, H}  
-     *(Khóa chính: M — `ma_nhom`, H — `ma_do_an` là UNIQUE)*
-  4. `MOC_TIEN_DO` = {U, V, H}  
-     *(Khóa chính: U — `ma_moc`)*
-  5. `NGUOI_DUNG` = {A_ND, B_ND, C_ND, D_ND, E_ND, G_ND, H_ND}  
-     *(Khóa chính: A_ND — `ma_nguoi_dung`, bao gồm cả Giảng viên K và Người thực hiện P)*
-  6. `THANH_VIEN_NHOM` = {B1, B2, B3, B4, B5}  
-     *(Khóa chính: B1 — `ma_thanh_vien_nhom`, UNIQUE (B2, B3))*
-  7. `BINH_LUAN` = {C1, C2, C3, C4, C5}  
-     *(Khóa chính: C1 — `ma_binh_luan`)*
-  8. `TEP_DINH_KEM` = {D1, D2, D3, D4, D5, D6, D7, D8}  
-     *(Khóa chính: D1 — `ma_tep`)*
-  9. `THONG_BAO` = {E1, E2, E3, E4, E5, E6, E7, E8, E9}  
-     *(Khóa chính: E1 — `ma_thong_bao`)*
-- Kết luận: Tất cả các phụ thuộc hàm trong từng lược đồ con đều có vế trái là siêu khóa -> **Đạt dạng chuẩn 3 (3NF)**.
+
+### 3.1. Cơ sở lý thuyết
+Một lược đồ quan hệ đạt 3NF nếu:
+1. Đã đạt dạng chuẩn 2 (2NF).
+2. Không tồn tại thuộc tính không khóa nào phụ thuộc **bắc cầu** (Transitive Dependency) vào khóa chính.
+*(Nói cách khác: Với mọi phụ thuộc hàm không tầm thường X → Y, thì X phải là một siêu khóa hoặc Y là một thuộc tính khóa).*
+
+### 3.2. Đánh giá vi phạm và phân tích:
+- Trong lược đồ Q, ta có các phụ thuộc hàm bắc cầu:
+  - `A -> U` và `U -> V, H` dẫn đến `A -> V, H` (U không phải siêu khóa của Q).
+  - `A -> U -> H` và `H -> I, J, K, M` dẫn đến `A -> I, J, K, M` (H không phải siêu khóa của Q).
+  - `H -> K` và `K -> L` dẫn đến `H -> L` (K không phải siêu khóa của Q).
+  - `A -> P` và `P -> S, T` dẫn đến `A -> S, T` (P không phải siêu khóa của Q).
+  - `A -> MP` và `MP -> R` dẫn đến `A -> R` (MP không phải siêu khóa của Q).
+- **Kết luận:** Lược đồ Q ban đầu **vi phạm 3NF nghiêm trọng**, bắt buộc phải phân rã thành các lược đồ con.
 
 ---
 
-## 4. Dạng chuẩn Boyce-Codd (BCNF)
-- Định nghĩa: Một lược đồ quan hệ đạt BCNF nếu mọi phụ thuộc hàm không tầm thường X → Y thì X bắt buộc phải là một siêu khóa.
-- Đánh giá: Trong tất cả 9 quan hệ con ở trên:
-  - Ở `CONG_VIEC`: Duy nhất A → các thuộc tính còn lại (A là khóa chính).
-  - Ở `DO_AN`: Duy nhất H → I, J, K (H là khóa chính).
-  - Ở `NHOM`: M → N, H và H → M, N (cả M và H đều là khóa ứng viên).
-  - Tương tự với các bảng còn lại, mọi vế trái của các phụ thuộc hàm đều là siêu khóa.
-- Kết luận: Cơ sở dữ liệu hoàn toàn **đạt chuẩn Boyce-Codd (BCNF)**.
+## 4. Dạng chuẩn Boyce-Codd (BCNF) và Quá trình Phân rã
+
+### 4.1. Cơ sở lý thuyết
+Một lược đồ quan hệ đạt chuẩn BCNF nếu mọi phụ thuộc hàm không tầm thường X → Y thì X bắt buộc phải là một siêu khóa (Superkey).
+
+### 4.2. Rã phụ thuộc hàm thành thuộc tính đơn (F'):
+```text
+F' = {
+  A -> B ; A -> C ; A -> D ; A -> E ; A -> G ; A -> P ; A -> U ; A -> W ;
+  H -> I ; H -> J ; H -> K ; H -> M ;
+  M -> N ; M -> H ;
+  P -> S ; P -> T ;
+  T -> P ;
+  K -> L ;
+  U -> V ; U -> H ;
+  MP -> R
+}
+```
+
+### 4.3. Kết quả phân rã thành 8 lược đồ con đạt BCNF:
+
+| Lược đồ con | Tập thuộc tính | Khóa chính (PK) | Khóa dự tuyển (Candidate Key) | Phụ thuộc hàm bảo toàn | Dạng chuẩn | Bảng CSDL tương ứng |
+|:---:|---|:---:|:---:|---|:---:|---|
+| **R1** | `{A, B, C, D, E, G, P, U, W}` | A | A | `A -> B, C, D, E, G, P, U, W` | **BCNF** | `cong_viec` |
+| **R2** | `{H, I, J, K, M}` | H | H, M | `H -> I, J, K, M` và `M -> H` | **BCNF** | `do_an` |
+| **R3** | `{M, N, H}` | M | M, H | `M -> N, H` và `H -> M` | **BCNF** | `nhom` |
+| **R4** | `{P, S, T}` | P | P, T | `P -> S, T` | **BCNF** | `nguoi_thuc_hien` |
+| **R5** | `{T, P}` | T | T, P | `T -> P` và `P -> T` | **BCNF** | `email_nguoi_dung` |
+| **R6** | `{K, L}` | K | K | `K -> L` | **BCNF** | `giang_vien` |
+| **R7** | `{U, V, H}` | U | U | `U -> V, H` | **BCNF** | `moc_tien_do` |
+| **R8** | `{M, P, R}` | `(M, P)` | `(M, P)` | `(M, P) -> R` | **BCNF** | `thanh_vien_nhom` |
+
+---
+
+## 5. Kết luận về tính chất của phép phân rã
+
+1. **Bảo toàn thông tin (BTTT - Lossless Join):**
+   * Theo thuật toán Chase (Tableau) với 20 cột và 8 hàng, dòng R1 ban đầu có `x` tại `{A, B, C, D, E, G, P, U, W}`, sau khi áp dụng lần lượt các phụ thuộc hàm từ R2 đến R8 thì toàn bộ các cột còn lại `{H, I, J, K, L, M, N, R, S, T, V}` đều được lấp đầy dấu `✓`.
+   * Hàng R1 biến đổi thành công thành dòng đầy đủ 20 thuộc tính ⇒ **Đạt Bảo toàn thông tin**.
+
+2. **Bảo toàn phụ thuộc hàm (BTPTH - Dependency Preservation):**
+   * Mỗi phụ thuộc hàm trong tập F ban đầu đều được chiếu nguyên vẹn vào ít nhất một lược đồ con:
+     `f1 ∈ R1`, `f2 ∈ R2`, `f3 ∈ R3`, `f4 ∈ R4`, `f5 ∈ R5`, `f6 ∈ R6`, `f7 ∈ R7`, `f8 ∈ R8`.
+   * Hợp các phụ thuộc hàm trên các bảng con tương đương F ⇒ **Đạt Bảo toàn phụ thuộc hàm**.

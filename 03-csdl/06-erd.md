@@ -23,7 +23,6 @@ erDiagram
   CONG_VIEC ||--o{ BINH_LUAN : chua_thao_luan
   CONG_VIEC ||--o{ TEP_DINH_KEM : dinh_kem
   CONG_VIEC ||--o{ THONG_BAO : phat_sinh
-  CONG_VIEC ||--o{ CONG_VIEC : phan_ra_thanh
 
   NGUOI_DUNG {
     uuid ma_nguoi_dung PK
@@ -82,7 +81,6 @@ erDiagram
     ngay_gio han_chot
     uuid ma_nguoi_thuc_hien FK
     uuid ma_nguoi_tao FK
-    uuid ma_cong_viec_cha FK
     ngay_gio thoi_gian_tao
   }
 
@@ -120,11 +118,14 @@ erDiagram
 
 ---
 
-## Ghi chú các ràng buộc toàn vẹn
-1. **Khóa ngoại và Ràng buộc duy nhất:**
-   - Trường `NHOM.ma_do_an` có ràng buộc `UNIQUE` để bảo đảm mỗi đồ án chỉ có đúng 1 nhóm sinh viên thực hiện (quan hệ 1–1).
-   - Bảng `THANH_VIEN_NHOM` có ràng buộc duy nhất trên cặp `(ma_nhom, ma_nguoi_dung)` để tránh trùng lặp sinh viên trong cùng một nhóm.
-2. **Ký hiệu trên sơ đồ:**
+## Ghi chú các ràng buộc toàn vẹn và ánh xạ vật lý
+1. **Quan hệ 1–1 giữa Đồ án và Nhóm:**
+   - Trường `NHOM.ma_do_an` có ràng buộc `UNIQUE` và là khóa ngoại tham chiếu tới `DO_AN(ma_do_an)` để đảm bảo mỗi đồ án chỉ gắn với duy nhất 1 nhóm sinh viên (và ngược lại).
+2. **Kỹ thuật Denormalization trên thực thể CONG_VIEC:**
+   - Thuộc tính `ma_do_an` được lưu trực tiếp trong `CONG_VIEC` (song song với `ma_moc`) nhằm tăng tốc độ truy vấn danh sách công việc theo đồ án mà không phải nối bảng trung gian `MOC_TIEN_DO`. Về mặt lý thuyết chuẩn hóa thuần túy, `CONG_VIEC` chỉ cần thuộc tính `ma_moc` do đã có phụ thuộc hàm `ma_moc → ma_do_an`.
+3. **Thực thể hợp nhất NGUOI_DUNG:**
+   - Trong mô hình CSDL vật lý, hai thực thể lý thuyết `NGUOI_THUC_HIEN` (sinh viên) và `GIANG_VIEN` được hợp nhất vào bảng dùng chung `NGUOI_DUNG` và phân định bằng thuộc tính `vai_tro_he_thong`.
+4. **Ký hiệu trên sơ đồ:**
    - `PK`: Khóa chính (Primary Key).
    - `FK`: Khóa ngoại (Foreign Key).
    - `UK`: Ràng buộc giá trị duy nhất (Unique Key).

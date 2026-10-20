@@ -60,7 +60,7 @@
 - **Luồng sự kiện chính:**
   1. Giảng viên vào không gian đồ án, chọn tạo công việc mới.
   2. Nhập tiêu đề công việc, mô tả yêu cầu, hạn chót hoàn thành và gán cho Nhóm trưởng.
-  3. (Tùy chọn) Chọn mốc tiến độ (milestone) tương ứng của đồ án.
+  3. Chọn mốc tiến độ (Milestone) tương ứng của đồ án mà công việc trực thuộc (Bắt buộc).
   4. Nhấn "Giao việc". Hệ thống lưu công việc và gửi thông báo nhắc việc đến Nhóm trưởng.
 - **Hậu điều kiện:** Công việc xuất hiện trong danh sách việc của đồ án, Nhóm trưởng nhận thông báo.
 
@@ -68,7 +68,7 @@
 - **Tác tử:** Nhóm trưởng.
 - **Luồng sự kiện chính:**
   1. Nhóm trưởng xem công việc do Giảng viên giao hoặc các đầu mục việc trong đồ án.
-  2. Tạo các công việc cụ thể / công việc con, mô tả chi tiết nội dung cần làm.
+  2. Tạo các công việc cụ thể, chọn mốc tiến độ trực thuộc và mô tả chi tiết nội dung cần làm.
   3. Chọn Thành viên thực hiện trong nhóm và ấn định hạn chót cụ thể.
   4. Nhấn "Lưu và phân công". Hệ thống tạo bản ghi công việc và gửi thông báo trực tiếp đến Thành viên được giao.
 - **Hậu điều kiện:** Thành viên thấy công việc trong danh sách "Công việc của tôi".

@@ -83,10 +83,9 @@
 | `phan_tram_tien_do` | Phần trăm tiến độ | Số thực (%) | Tỷ lệ hoàn thành công việc từ 0% đến 100% |
 | `trang_thai_khoa` | Trạng thái khóa | Đúng/Sai (Boolean) | Cờ khóa bảo vệ tiến độ sau khi đã chốt duyệt |
 | `han_chot` | Thời hạn hoàn thành | Ngày giờ (Timestamp) | Thời hạn cuối cùng để nộp sản phẩm công việc |
-| `ma_nguoi_thuc_hien` | Mã người thực hiện | UUID (Khóa ngoại) | Thành viên được phân công làm việc |
-| `ma_nguoi_tao` | Mã người giao việc | UUID (Khóa ngoại) | Người tạo ra công việc (Giảng viên hoặc Nhóm trưởng) |
+| `ma_nguoi_thuc_hien` | Mã người thực hiện | UUID (Khóa ngoại) | Thành viên được phân công làm việc (Có thể NULL khi chưa gán) |
+| `ma_nguoi_tao` | Mã người giao việc | UUID (Khóa ngoại) | Người tạo ra công việc (Giảng viên, Nhóm trưởng hoặc Thành viên) |
 | `ma_nguoi_khoa` | Mã người chốt | UUID (Khóa ngoại) | Người đã phê duyệt và khóa tiến độ |
-| `ma_cong_viec_cha` | Mã công việc cha | UUID (Khóa ngoại) | Công việc cấp trên (phục vụ chia nhỏ việc con) |
 | `thoi_gian_tao` | Thời gian tạo | Ngày giờ (Timestamp) | Thời điểm lập công việc |
 
 ### 2.7. Thực thể `BINH_LUAN` (Bình luận)
