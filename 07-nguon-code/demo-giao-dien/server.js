@@ -90,7 +90,12 @@ const server = http.createServer(async (req, res) => {
 
   // 2. GET /api/users
   if (method === 'GET' && (pathname === 'api/users' || pathname === '/api/users')) {
-    const users = db.prepare(`SELECT ma_nguoi_dung, email, ho_ten, vai_tro_he_thong, trang_thai_hoat_dong FROM nguoi_dung`).all();
+    const users = db.prepare(`
+      SELECT u.ma_nguoi_dung, u.email, u.ho_ten, u.vai_tro_he_thong, u.trang_thai_hoat_dong,
+             tv.vai_tro_trong_nhom
+      FROM nguoi_dung u
+      LEFT JOIN thanh_vien_nhom tv ON u.ma_nguoi_dung = tv.ma_nguoi_dung
+    `).all();
     return sendJson(res, 200, users);
   }
 

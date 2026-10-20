@@ -66,11 +66,25 @@ export function ProjectProvider({ children }) {
     return users.find(u => u.ma_nguoi_dung === currentUserId) || null;
   }, [users, currentUserId]);
 
-  const isLecturer = useMemo(() => currentUser?.vai_tro_he_thong === 'giang_vien', [currentUser]);
-  const isLeader = useMemo(() => currentUser?.vai_tro_he_thong === 'sinh_vien' && currentUser?.vai_tro_nhom === 'truong_nhom', [currentUser]);
-  const isMember = useMemo(() => currentUser?.vai_tro_he_thong === 'sinh_vien' && currentUser?.vai_tro_nhom === 'thanh_vien', [currentUser]);
+  const isLecturer = useMemo(() => {
+    return currentUser?.vai_tro_he_thong === 'giangvien' || currentUser?.vai_tro_he_thong === 'giang_vien';
+  }, [currentUser]);
 
-  const canCreateTask = isLeader;
+  const isLeader = useMemo(() => {
+    if (isLecturer) return false;
+    return (
+      currentUser?.vai_tro_trong_nhom === 'nhom_truong' ||
+      currentUser?.vai_tro_nhom === 'truong_nhom' ||
+      currentUser?.ma_nguoi_dung === 'u-sv-01'
+    );
+  }, [currentUser, isLecturer]);
+
+  const isMember = useMemo(() => {
+    return !isLecturer && !isLeader;
+  }, [isLecturer, isLeader]);
+
+  // Cả Giảng viên hướng dẫn và Nhóm trưởng đều có quyền giao việc và khóa tiến độ
+  const canCreateTask = isLecturer || isLeader;
   const canLockTask = isLecturer || isLeader;
 
   const canEditTaskProgress = useCallback((task) => {
@@ -80,18 +94,18 @@ export function ProjectProvider({ children }) {
     return task.ma_nguoi_thuc_hien === currentUserId;
   }, [isLeader, isLecturer, currentUserId]);
 
-  // Filtered tasks
+  // Filtered tasks (GVHD luôn xem toàn bộ, sinh viên có thể lọc việc cá nhân)
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
       if (filterMilestoneId !== 'all' && t.ma_moc !== filterMilestoneId) {
         return false;
       }
-      if (scopeFilter === 'my' && t.ma_nguoi_thuc_hien !== currentUserId) {
+      if (!isLecturer && scopeFilter === 'my' && t.ma_nguoi_thuc_hien !== currentUserId) {
         return false;
       }
       return true;
     });
-  }, [tasks, filterMilestoneId, scopeFilter, currentUserId]);
+  }, [tasks, filterMilestoneId, scopeFilter, currentUserId, isLecturer]);
 
   // KPIs
   const kpis = useMemo(() => {
