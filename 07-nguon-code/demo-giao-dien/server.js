@@ -320,14 +320,27 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ==========================================
-  // STATIC FILE SERVING
+  // STATIC FILE SERVING (React build in dist/ or fallback)
   // ==========================================
-  let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
+  const distDir = path.join(__dirname, 'dist');
+  const hasDist = fs.existsSync(distDir) && fs.existsSync(path.join(distDir, 'index.html'));
+  const staticRoot = hasDist ? distDir : __dirname;
+  
+  let relPath = pathname === '/' ? 'index.html' : pathname;
+  let filePath = path.join(staticRoot, relPath);
 
   // Security: Prevent Directory Traversal
-  if (!filePath.startsWith(__dirname)) {
+  if (!filePath.startsWith(staticRoot) && !filePath.startsWith(__dirname)) {
     res.writeHead(403);
     return res.end('Forbidden');
+  }
+
+  // SPA fallback to index.html if file not found
+  if (!fs.existsSync(filePath)) {
+    const fallbackPath = path.join(staticRoot, 'index.html');
+    if (fs.existsSync(fallbackPath)) {
+      filePath = fallbackPath;
+    }
   }
 
   fs.stat(filePath, (err, stats) => {
