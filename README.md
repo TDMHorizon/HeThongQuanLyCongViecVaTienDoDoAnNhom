@@ -9,7 +9,7 @@
 | Ngành | Công nghệ thông tin |
 | Chuyên ngành | Công nghệ phần mềm |
 | Sinh viên | Đỗ Minh Trực (2180606023 – 21DTHC5), Trần Minh Duy (2280600494 – 22DTHE9) |
-| GVHD | Bùi Phú Khuyên |
+| GVHD | ThS. Bùi Phú Khuyên |
 | Stack dự kiến | React, Node.js (Express), PostgreSQL, Chart.js/ECharts |
 | Triển khai MVP | **Chỉ local** |
 

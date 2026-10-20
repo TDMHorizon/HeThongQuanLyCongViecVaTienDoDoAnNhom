@@ -1,0 +1,89 @@
+/* TasteSkill v2 Tokens - Hệ thống quản lý công việc và tiến độ đồ án nhóm */
+:root {
+  /* Surfaces & Backgrounds */
+  --ground: #ffffff;
+  --surface: #fafafa;
+  --surface-raised: #ffffff;
+  --surface-subtle: #f4f4f5;
+  --surface-hover: #f1f1f2;
+
+  /* Borders & Rules */
+  --border: #e4e4e7;
+  --border-subtle: #f0f0f2;
+  --border-focus: #18181b;
+  --rule: #f4f4f5;
+
+  /* Text & Inks */
+  --text: #18181b;
+  --text-muted: #71717a;
+  --text-subtle: #a1a1aa;
+  --text-inverse: #ffffff;
+
+  /* Brand / Primary Accent */
+  --accent: #0f172a;
+  --accent-surface: #f1f5f9;
+  --accent-contrast: #ffffff;
+
+  /* Trạng thái công việc theo CSDL (cong_viec.trang_thai) */
+  /* can_lam */
+  --status-can-lam-bg: #f4f4f5;
+  --status-can-lam-ink: #52525b;
+  --status-can-lam-border: #e4e4e7;
+
+  /* dang_lam */
+  --status-dang-lam-bg: #eff6ff;
+  --status-dang-lam-ink: #1d4ed8;
+  --status-dang-lam-border: #bfdbfe;
+
+  /* hoan_thanh */
+  --status-hoan-thanh-bg: #f0fdf4;
+  --status-hoan-thanh-ink: #15803d;
+  --status-hoan-thanh-border: #bbf7d0;
+
+  /* tre_han */
+  --status-tre-han-bg: #fef2f2;
+  --status-tre-han-ink: #b91c1c;
+  --status-tre-han-border: #fecaca;
+
+  /* Trạng thái khóa (cong_viec.trang_thai_khoa) */
+  --lock-bg: #fffbeb;
+  --lock-ink: #b45309;
+  --lock-border: #fde68a;
+
+  /* Layout Dimensions */
+  --sidebar-width: 240px;
+  --drawer-width: 400px;
+  --header-height: 56px;
+  --rolebar-height: 44px;
+
+  /* Typography */
+  --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Font Sizes */
+  --fs-title: 20px;
+  --fs-section: 14px;
+  --fs-kpi: 26px;
+  --fs-body: 13.5px;
+  --fs-small: 12px;
+  --fs-tiny: 11px;
+
+  /* Spacing */
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --gap-xl: 24px;
+  --pad-card: 16px;
+
+  /* Corner Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 9999px;
+
+  /* Rest Shadow: None according to TasteSkill app-screens */
+  --shadow-rest: none;
+  --shadow-drawer: -4px 0 20px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 10px 30px rgba(0, 0, 0, 0.08);
+}

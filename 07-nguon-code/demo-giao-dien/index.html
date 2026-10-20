@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ thống Quản lý Công việc & Tiến độ Đồ án Nhóm - Demo DACS</title>
+  
+  <!-- Font Instrument Sans theo TasteSkill v2 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="src/styles/tokens.css">
+  <link rel="stylesheet" href="src/styles/app.css">
+</head>
+<body>
+  <!-- Top Demo Role Switcher Bar -->
+  <div class="demo-role-banner">
+    <div class="banner-title">
+      <span>ĐỒ ÁN CƠ SỞ (DACS)</span>
+      <span class="badge-pill">Bản Demo Giao diện MVP (TasteSkill v2)</span>
+    </div>
+    <div class="role-switch-buttons">
+      <span style="align-self: center; color: #a1a1aa; font-size: 11.5px; margin-right: 4px;">Đang xem với vai trò:</span>
+      <button class="btn-role-tab" data-user-id="u-gv-01">ThS. Bùi Phú Khuyên (GVHD)</button>
+      <button class="btn-role-tab active" data-user-id="u-sv-01">Đỗ Minh Trực (Nhóm trưởng)</button>
+      <button class="btn-role-tab" data-user-id="u-sv-02">Trần Minh Duy (Thành viên)</button>
+    </div>
+  </div>
+
+  <!-- Workspace Container -->
+  <div class="workspace-wrapper">
+    <!-- 1. Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="project-brand">
+          <div class="brand-icon">D5</div>
+          <div class="brand-info">
+            <h1 id="brand-project-name">Đồ án Nhóm 05</h1>
+            <p>CNPM &bull; DACS 2026</p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Không gian làm việc</div>
+        <div class="nav-item active" data-tab="kanban">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+          <span>Bảng việc (Kanban)</span>
+          <span class="nav-count" id="count-kanban">9</span>
+        </div>
+        <div class="nav-item" data-tab="table">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          <span>Danh sách chi tiết</span>
+        </div>
+        <div class="nav-item" data-tab="milestones">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+          <span>Mốc tiến độ (Milestones)</span>
+          <span class="nav-count" id="count-milestones">4</span>
+        </div>
+
+        <div class="nav-section-title">Quản lý & Trao đổi</div>
+        <div class="nav-item" data-tab="team">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span>Thành viên nhóm</span>
+          <span class="nav-count">2</span>
+        </div>
+        <div class="nav-item" data-tab="notifications">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          <span>Thông báo hệ thống</span>
+          <span class="nav-count" id="count-unread">1</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="current-user-card">
+          <div class="user-avatar" id="current-user-avatar">DT</div>
+          <div class="user-meta">
+            <div class="user-name" id="current-user-name">Đỗ Minh Trực</div>
+            <div class="user-role-badge" id="current-user-role">Nhóm trưởng</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. Main Canvas -->
+    <main class="main-canvas">
+      <!-- Canvas Header -->
+      <header class="canvas-header">
+        <div class="header-top-row">
+          <div class="project-title-area">
+            <h2 id="project-title-heading">Hệ thống quản lý công việc và tiến độ đồ án nhóm</h2>
+            <div class="project-meta-pills">
+              <span class="meta-pill" id="pill-course-name">Đồ án cơ sở</span>
+              <span class="meta-pill" id="pill-project-type">Loại: Cơ sở (co_so)</span>
+              <span class="meta-pill" id="pill-status-badge">Đang thực hiện</span>
+              <span class="meta-pill" id="pill-instructor">GVHD: ThS. Bùi Phú Khuyên</span>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <div class="milestone-dropdown-wrapper">
+              <button class="btn btn-outline btn-sm" id="btn-filter-milestone">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <span id="label-filter-milestone">Lọc theo Mốc</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 3px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <div id="dropdown-milestones-menu" class="dropdown-popup" style="display: none;"></div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-create-task">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Giao việc mới</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Overall Progress Track -->
+        <div class="progress-summary-bar">
+          <span class="progress-label">Tiến độ tổng thể đồ án (do_an.tien_do_tong):</span>
+          <div class="progress-track">
+            <div class="progress-fill" id="overall-progress-fill" style="width: 65%;"></div>
+          </div>
+          <span class="progress-value num-tabular" id="overall-progress-text">65.0%</span>
+        </div>
+
+        <!-- View Switcher Tabs -->
+        <div class="view-tabs-bar">
+          <div class="view-tabs">
+            <button class="tab-btn active" data-view="kanban">Bảng Kanban</button>
+            <button class="tab-btn" data-view="table">Bảng chi tiết (Table)</button>
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted);">
+            Nhấn vào bất kỳ công việc nào để xem chi tiết, cập nhật % và khóa tiến độ.
+          </div>
+        </div>
+      </header>
+
+      <!-- Canvas Body (Dynamic Views) -->
+      <div class="canvas-body">
+        <!-- KPI Type Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Tổng số công việc</span>
+            <span class="kpi-value num-tabular" id="kpi-total-tasks">9</span>
+            <span class="kpi-subtext">Trong 4 mốc tiến độ</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Đang thực hiện (dang_lam)</span>
+            <span class="kpi-value num-tabular" style="color: #1d4ed8;" id="kpi-in-progress">2</span>
+            <span class="kpi-subtext">Đang trong hạn</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Đã hoàn thành (hoan_thanh)</span>
+            <span class="kpi-value num-tabular" style="color: #15803d;" id="kpi-completed">4</span>
+            <span class="kpi-subtext">Đã chốt tiến độ</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Cảnh báo trễ hạn (tre_han)</span>
+            <span class="kpi-value num-tabular" style="color: #b91c1c;" id="kpi-overdue">1</span>
+            <span class="kpi-subtext">Cần xử lý gấp</span>
+          </div>
+        </div>
+
+        <!-- View 1: Kanban Board -->
+        <div id="view-kanban-container" class="view-container">
+          <div class="kanban-board">
+            <!-- Cột Cần làm -->
+            <div class="kanban-col" data-status="can_lam">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">
+                  <span class="col-badge badge-can-lam" id="badge-count-can-lam">2</span>
+                  <span>Cần làm</span>
+                </span>
+              </div>
+              <div class="kanban-cards-list" id="list-can-lam"></div>
+            </div>
+
+            <!-- Cột Đang làm -->
+            <div class="kanban-col" data-status="dang_lam">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">
+                  <span class="col-badge badge-dang-lam" id="badge-count-dang-lam">2</span>
+                  <span>Đang làm</span>
+                </span>
+              </div>
+              <div class="kanban-cards-list" id="list-dang-lam"></div>
+            </div>
+
+            <!-- Cột Hoàn thành -->
+            <div class="kanban-col" data-status="hoan_thanh">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">
+                  <span class="col-badge badge-hoan-thanh" id="badge-count-hoan-thanh">4</span>
+                  <span>Hoàn thành</span>
+                </span>
+              </div>
+              <div class="kanban-cards-list" id="list-hoan-thanh"></div>
+            </div>
+
+            <!-- Cột Trễ hạn -->
+            <div class="kanban-col" data-status="tre_han">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">
+                  <span class="col-badge badge-tre-han" id="badge-count-tre-han">1</span>
+                  <span>Trễ hạn</span>
+                </span>
+              </div>
+              <div class="kanban-cards-list" id="list-tre-han"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View 2: Table View (Hidden by default) -->
+        <div id="view-table-container" class="view-container" style="display: none;">
+          <div class="table-view-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th style="width: 38%;">Tiêu đề công việc</th>
+                  <th style="width: 20%;">Mốc trực thuộc</th>
+                  <th style="width: 14%;">Người làm</th>
+                  <th style="width: 12%;">Hạn chót</th>
+                  <th style="width: 10%; text-align: right;">Tiến độ</th>
+                  <th style="width: 6%; text-align: center;">Khóa</th>
+                </tr>
+              </thead>
+              <tbody id="table-tasks-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- View 3: Milestones View -->
+        <div id="view-milestones-container" class="view-container" style="display: none;">
+          <div id="milestones-list-render" style="display: flex; flex-direction: column; gap: 16px;"></div>
+        </div>
+
+        <!-- View 4: Team View -->
+        <div id="view-team-container" class="view-container" style="display: none;">
+          <div id="team-list-render" style="display: flex; flex-direction: column; gap: 16px;"></div>
+        </div>
+
+        <!-- View 5: Notifications View -->
+        <div id="view-notifications-container" class="view-container" style="display: none;">
+          <div id="notifications-list-render" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Task Detail Drawer (380px) -->
+  <div id="task-drawer-overlay" class="task-drawer-overlay" style="display: none;">
+    <div class="task-drawer">
+      <div class="drawer-header">
+        <h3 id="drawer-task-title-header">Chi tiết công việc</h3>
+        <button class="btn-close" id="btn-close-drawer">&times;</button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Lock Status Indicator Banner -->
+        <div id="drawer-lock-banner" class="lock-banner" style="display: none;">
+          <span>&#128274; Công việc đã được chốt tiến độ và khóa.</span>
+          <button class="btn btn-outline btn-sm" id="btn-unlock-task" style="background: #ffffff;">Mở khóa</button>
+        </div>
+
+        <!-- Form fields mapping 1:1 to cong_viec table -->
+        <div class="drawer-field">
+          <label>Tiêu đề công việc (tieu_de)</label>
+          <input type="text" class="drawer-input" id="drawer-input-title" placeholder="Nhập tiêu đề...">
+        </div>
+
+        <div class="drawer-field">
+          <label>Mốc tiến độ trực thuộc (ma_moc &rarr; moc_tien_do)</label>
+          <select class="drawer-select" id="drawer-select-milestone"></select>
+        </div>
+
+        <div class="drawer-field">
+          <label>Người thực hiện (ma_nguoi_thuc_hien &rarr; nguoi_dung)</label>
+          <select class="drawer-select" id="drawer-select-assignee"></select>
+        </div>
+
+        <div class="drawer-field">
+          <label>Hạn chót hoàn thành (han_chot)</label>
+          <input type="date" class="drawer-input" id="drawer-input-deadline">
+        </div>
+
+        <div class="drawer-field">
+          <label>Trạng thái (trang_thai: can_lam, dang_lam, hoan_thanh, tre_han)</label>
+          <select class="drawer-select" id="drawer-select-status">
+            <option value="can_lam">Cần làm (can_lam)</option>
+            <option value="dang_lam">Đang làm (dang_lam)</option>
+            <option value="hoan_thanh">Hoàn thành (hoan_thanh)</option>
+            <option value="tre_han">Trễ hạn (tre_han)</option>
+          </select>
+        </div>
+
+        <div class="drawer-field">
+          <label>Nội dung mô tả (noi_dung_mo_ta)</label>
+          <textarea class="drawer-textarea" id="drawer-textarea-desc" placeholder="Mô tả công việc..."></textarea>
+        </div>
+
+        <!-- % Progress Slider (phan_tram_tien_do 0 - 100) -->
+        <div class="progress-slider-wrapper">
+          <div class="slider-header">
+            <span>Tiến độ thực tế (phan_tram_tien_do)</span>
+            <span class="slider-val num-tabular" id="drawer-slider-val">75%</span>
+          </div>
+          <input type="range" class="slider-control" id="drawer-slider" min="0" max="100" step="5" value="75">
+          <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <!-- Lock Task Action Button for Leader/Lecturer -->
+        <div id="drawer-lock-action-container">
+          <button class="btn btn-outline" id="btn-lock-task" style="width: 100%; border-color: var(--lock-border); color: var(--lock-ink);">
+            &#128274; Chốt & Khóa tiến độ công việc này
+          </button>
+        </div>
+
+        <button class="btn btn-primary" id="btn-save-task-changes" style="width: 100%;">Lưu thay đổi</button>
+
+        <!-- Comments Section (binh_luan) -->
+        <h4 class="drawer-section-title">Thảo luận & Bình luận (binh_luan)</h4>
+        <div class="comments-list" id="drawer-comments-list"></div>
+        <div class="comment-input-row">
+          <input type="text" class="drawer-input" id="input-new-comment" placeholder="Viết phản hồi trao đổi...">
+          <button class="btn btn-outline btn-sm" id="btn-send-comment">Gửi</button>
+        </div>
+
+        <!-- Attachments Section (tep_dinh_kem) -->
+        <h4 class="drawer-section-title">Tệp đính kèm (tep_dinh_kem)</h4>
+        <div id="drawer-attachments-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div style="margin-top: 6px;">
+          <button class="btn btn-outline btn-sm" id="btn-upload-file-demo" style="width: 100%;">
+            + Nộp tệp tài liệu / báo cáo đính kèm
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Task Modal -->
+  <div id="create-task-modal" class="task-drawer-overlay" style="display: none; align-items: center; justify-content: center;">
+    <div style="width: 480px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border); box-shadow: var(--shadow-modal); padding: 22px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 15px; font-weight: 600;">Giao công việc mới</h3>
+        <button class="btn-close" id="btn-close-modal">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="drawer-field">
+          <label>Tiêu đề công việc (*)</label>
+          <input type="text" class="drawer-input" id="new-task-title" placeholder="Ví dụ: Thiết kế giao diện chi tiết...">
+        </div>
+        <div class="drawer-field">
+          <label>Mốc tiến độ trực thuộc (*)</label>
+          <select class="drawer-select" id="new-task-milestone"></select>
+        </div>
+        <div class="drawer-field">
+          <label>Phân công cho thành viên</label>
+          <select class="drawer-select" id="new-task-assignee"></select>
+        </div>
+        <div class="drawer-field">
+          <label>Hạn chót hoàn thành</label>
+          <input type="date" class="drawer-input" id="new-task-deadline">
+        </div>
+        <div class="drawer-field">
+          <label>Nội dung mô tả</label>
+          <textarea class="drawer-textarea" id="new-task-desc" placeholder="Chi tiết yêu cầu..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+          <button class="btn btn-outline" id="btn-cancel-modal">Hủy</button>
+          <button class="btn btn-primary" id="btn-confirm-create-task">Tạo công việc</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
