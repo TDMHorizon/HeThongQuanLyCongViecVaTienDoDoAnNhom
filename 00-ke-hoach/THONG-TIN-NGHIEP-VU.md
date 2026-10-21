@@ -7,7 +7,7 @@
 - **Ngành:** Công nghệ thông tin
 - **Chuyên ngành:** Công nghệ phần mềm
 - **SV:** Đỗ Minh Trực (2180606023 – 21DTHC5), Trần Minh Duy (2280600494 – 22DTHE9)
-- **GVHD:** Bùi Phú Khuyên
+- **GVHD:** ThS. Bùi Phú Khuyên
 - **Stack:** React, Node.js (Express), PostgreSQL/SQL, Chart.js hoặc ECharts
 - **Triển khai MVP:** chỉ **local** (không bắt buộc Cloudflare/Render/Supabase)
 
