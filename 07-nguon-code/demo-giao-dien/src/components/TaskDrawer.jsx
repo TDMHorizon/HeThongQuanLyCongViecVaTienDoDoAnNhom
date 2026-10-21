@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { apiService } from '../services/apiService.js';
 import { formatDate, formatFileSize } from '../utils/formatters.js';
@@ -30,6 +30,7 @@ export default function TaskDrawer() {
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Sync state when selectedTask changes
   useEffect(() => {
@@ -112,21 +113,75 @@ export default function TaskDrawer() {
     }
   };
 
-  const handleAddAttachment = async () => {
-    const fileName = prompt('Nhập tên tệp tài liệu / báo cáo muốn nộp đính kèm:', 'Bao-cao-tuan-hoan-chinh.pdf');
-    if (!fileName) return;
+  const getFileIcon = (fileName = '') => {
+    const ext = fileName.split('.').pop().toLowerCase();
+    if (ext === 'pdf') return '📄';
+    if (['doc', 'docx'].includes(ext)) return '📝';
+    if (['xls', 'xlsx'].includes(ext)) return '📊';
+    if (['zip', 'rar', '7z'].includes(ext)) return '📦';
+    if (['png', 'jpg', 'jpeg', 'svg'].includes(ext)) return '🖼️';
+    if (['js', 'jsx', 'html', 'css', 'sql', 'py'].includes(ext)) return '💻';
+    return '📎';
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Giới hạn 10MB theo đặc tả NFR-07
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Kích thước tệp vượt quá giới hạn 10MB (theo đặc tả NFR-07)!');
+      e.target.value = '';
+      return;
+    }
 
     try {
       await apiService.addAttachment(selectedTask.ma_cong_viec, {
         userId: currentUserId,
-        ten_tep: fileName,
-        loai_tep: fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
-        dung_luong: Math.floor(Math.random() * 800000) + 20000
+        ten_tep: file.name,
+        loai_tep: file.type || 'application/octet-stream',
+        dung_luong: file.size
       });
       const updated = await apiService.getAttachments(selectedTask.ma_cong_viec);
       setAttachments(updated);
     } catch (err) {
       alert(`Lỗi nộp tệp: ${err.message}`);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleDownloadFile = (f) => {
+    const blob = new Blob([
+      `HỆ THỐNG QUẢN LÝ TIẾN ĐỘ ĐỒ ÁN NHÓM (DACS)\n` +
+      `-------------------------------------------\n` +
+      `Tên tài liệu: ${f.ten_tep}\n` +
+      `Công việc: ${selectedTask.tieu_de}\n` +
+      `Người nộp: ${f.ten_nguoi_tai_len || 'Sinh viên'}\n` +
+      `Thời gian nộp: ${f.thoi_gian_tao || new Date().toISOString()}\n` +
+      `Dung lượng: ${formatFileSize(f.dung_luong)}\n\n` +
+      `[Tệp tài liệu đã được lưu trữ an toàn trong CSDL SQLite]`
+    ], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.ten_tep;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteAttachment = async (f) => {
+    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa tệp "${f.ten_tep}" khỏi công việc này không?`);
+    if (!confirmed) return;
+
+    try {
+      await apiService.deleteAttachment(selectedTask.ma_cong_viec, f.ma_tep);
+      const updated = await apiService.getAttachments(selectedTask.ma_cong_viec);
+      setAttachments(updated);
+    } catch (err) {
+      alert(`Lỗi xóa tệp: ${err.message}`);
     }
   };
 
@@ -332,10 +387,18 @@ export default function TaskDrawer() {
           </div>
 
           {/* Attachments Section */}
-          <h4 className="drawer-section-title">Tệp đính kèm (tep_dinh_kem)</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+              Tài liệu & Báo cáo đính kèm ({attachments.length})
+            </h4>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tối đa 10MB/tệp</span>
+          </div>
+
           <div id="drawer-attachments-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {attachments.length === 0 ? (
-              <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Chưa có tệp đính kèm.</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                Chưa có tài liệu đính kèm cho công việc này.
+              </div>
             ) : (
               attachments.map(f => (
                 <div
@@ -348,28 +411,59 @@ export default function TaskDrawer() {
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '12px'
+                    fontSize: '12px',
+                    gap: '8px'
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>{f.ten_tep}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
-                      {formatFileSize(f.dung_luong)} &bull; {f.ten_nguoi_tai_len || 'Đính kèm'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{getFileIcon(f.ten_tep)}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.ten_tep}>
+                        {f.ten_tep}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
+                        {formatFileSize(f.dung_luong)} &bull; {f.ten_nguoi_tai_len || 'Đính kèm'} &bull; {formatDate(f.thoi_gian_tao)}
+                      </div>
                     </div>
                   </div>
-                  <span className="meta-pill" style={{ fontSize: '10px' }}>{f.loai_tep}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleDownloadFile(f)}
+                      title="Tải tệp này về máy"
+                      style={{ padding: '3px 8px', fontSize: '11px' }}
+                    >
+                      ⬇ Tải về
+                    </button>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleDeleteAttachment(f)}
+                      title="Xóa tệp tài liệu này"
+                      style={{ padding: '3px 8px', fontSize: '11px', color: '#b91c1c', borderColor: '#fecaca' }}
+                    >
+                      🗑️ Xóa
+                    </button>
+                  </div>
                 </div>
               ))
             )}
           </div>
-          <div style={{ marginMount: '6px', marginTop: '6px' }}>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+
+          <div style={{ marginTop: '8px' }}>
             <button
               className="btn btn-outline btn-sm"
               id="btn-upload-file-demo"
-              style={{ width: '100%' }}
-              onClick={handleAddAttachment}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 12px', fontWeight: 600 }}
+              onClick={() => fileInputRef.current?.click()}
             >
-              + Nộp tệp tài liệu / báo cáo đính kèm
+              📎 Chọn tệp từ máy tính để nộp báo cáo / mã nguồn
             </button>
           </div>
         </div>

@@ -17,6 +17,12 @@ export function ProjectProvider({ children }) {
   const [scopeFilter, setScopeFilter] = useState('all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 880) {
+      return true;
+    }
+    return false;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -203,6 +209,8 @@ export function ProjectProvider({ children }) {
     canEditTaskProgress,
     filteredTasks,
     kpis,
+    sidebarCollapsed,
+    setSidebarCollapsed,
     // Setters & Actions
     setCurrentUserId,
     setActiveTab,

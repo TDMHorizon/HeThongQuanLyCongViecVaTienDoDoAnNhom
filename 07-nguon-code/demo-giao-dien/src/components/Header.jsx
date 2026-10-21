@@ -13,6 +13,8 @@ export default function Header({ activeTab, setActiveTab }) {
     isLecturer,
     canCreateTask,
     setIsTaskModalOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
     kpis
   } = useProject();
 
@@ -43,13 +45,26 @@ export default function Header({ activeTab, setActiveTab }) {
   return (
     <header className="canvas-header">
       <div className="header-top-row">
-        <div className="project-title-area">
-          <h2 id="project-title-heading">{projectTitle}</h2>
-          <div className="project-meta-pills">
-            <span className="meta-pill" id="pill-course-name">{courseName}</span>
-            <span className="meta-pill" id="pill-project-type">Loại: {projectType}</span>
-            <span className="meta-pill" id="pill-status-badge">{projectStatus}</span>
-            <span className="meta-pill" id="pill-instructor">GVHD: {instructorName}</span>
+        <div className="project-title-container">
+          <button
+            className="btn btn-outline btn-sm btn-sidebar-toggle"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title="Thu gọn / Mở rộng thanh điều hướng"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <div className="project-title-area">
+            <h2 id="project-title-heading">{projectTitle}</h2>
+            <div className="project-meta-pills">
+              <span className="meta-pill" id="pill-course-name">{courseName}</span>
+              <span className="meta-pill" id="pill-project-type">Loại: {projectType}</span>
+              <span className="meta-pill" id="pill-status-badge">{projectStatus}</span>
+              <span className="meta-pill" id="pill-instructor">GVHD: {instructorName}</span>
+            </div>
           </div>
         </div>
 

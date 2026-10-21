@@ -16,9 +16,9 @@ export default function TeamView() {
           <h3 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
             Giảng viên hướng dẫn (K - do_an.ma_giang_vien)
           </h3>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div className="user-avatar" style={{ width: '38px', height: '38px', fontSize: '13px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '10px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
+              <div className="user-avatar" style={{ width: '38px', height: '38px', fontSize: '13px', flexShrink: 0 }}>
                 GV
               </div>
               <div>
@@ -44,6 +44,8 @@ export default function TeamView() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
                     padding: '10px 12px',
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',

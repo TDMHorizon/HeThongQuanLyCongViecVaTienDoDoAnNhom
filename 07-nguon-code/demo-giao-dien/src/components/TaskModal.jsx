@@ -72,8 +72,11 @@ export default function TaskModal() {
       }}
     >
       <div
+        className="modal-dialog-card"
         style={{
-          width: '480px',
+          width: '100%',
+          maxWidth: '480px',
+          margin: '16px',
           background: '#ffffff',
           borderRadius: '8px',
           border: '1px solid var(--border)',

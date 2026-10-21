@@ -301,6 +301,14 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 10b. DELETE /api/tasks/:id/attachments/:fileId OR /api/attachments/:id
+  const deleteFileMatch = pathname.match(/^\/?api\/tasks\/([^/]+)\/attachments\/([^/]+)\/?$/) || pathname.match(/^\/?api\/attachments\/([^/]+)\/?$/);
+  if (method === 'DELETE' && deleteFileMatch) {
+    const fileId = deleteFileMatch[2] || deleteFileMatch[1];
+    db.prepare(`DELETE FROM tep_dinh_kem WHERE ma_tep = ?`).run(fileId);
+    return sendJson(res, 200, { success: true, message: 'Đã xóa tệp thành công' });
+  }
+
   // 11. GET /api/team
   if (method === 'GET' && (pathname === 'api/team' || pathname === '/api/team')) {
     const members = db.prepare(`
@@ -322,6 +330,11 @@ const server = http.createServer(async (req, res) => {
       : `SELECT * FROM thong_bao ORDER BY thoi_gian_tao DESC`;
     const notifications = userId ? db.prepare(query).all(userId) : db.prepare(query).all();
     return sendJson(res, 200, notifications);
+  }
+
+  // Chặn tất cả request /api không khớp để luôn trả JSON lỗi thay vì trả về index.html
+  if (pathname.startsWith('/api') || pathname.startsWith('api')) {
+    return sendJson(res, 404, { error: 'Không tìm thấy API endpoint' });
   }
 
   // ==========================================

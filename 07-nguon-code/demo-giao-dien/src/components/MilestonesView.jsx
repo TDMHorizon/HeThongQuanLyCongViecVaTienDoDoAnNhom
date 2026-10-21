@@ -15,8 +15,8 @@ export default function MilestonesView() {
 
           return (
             <div key={m.ma_moc} className="kpi-card" style={{ padding: '18px 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ minWidth: '220px', flex: '1 1 300px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{m.ten_moc}</h3>
                   <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
                     {m.noi_dung_mo_ta || ''}
@@ -26,7 +26,7 @@ export default function MilestonesView() {
                   Hạn chót: {formatDate(m.han_hoan_thanh)}
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginTop: '10px' }}>
                 <div className="progress-track" style={{ height: '6px', flex: 1 }}>
                   <div className="progress-fill" style={{ width: `${progress}%` }}></div>
                 </div>

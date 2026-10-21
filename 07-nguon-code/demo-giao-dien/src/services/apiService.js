@@ -69,6 +69,9 @@ export const apiService = {
     method: 'POST',
     body: JSON.stringify(data)
   }),
+  deleteAttachment: (taskId, fileId) => request(`/tasks/${taskId}/attachments/${fileId}`, {
+    method: 'DELETE'
+  }),
 
   getTeam: () => request('/team'),
   getNotifications: (userId) => request(`/notifications?userId=${encodeURIComponent(userId)}`)
