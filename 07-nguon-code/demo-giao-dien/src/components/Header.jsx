@@ -89,15 +89,21 @@ export default function Header({ activeTab, setActiveTab }) {
             <div id="scope-filter-toggle" style={{ display: 'inline-flex', gap: '4px' }}>
               <div className="view-tabs" style={{ marginRight: '4px' }}>
                 <button
-                  className={`tab-btn ${scopeFilter === 'my' ? 'active' : ''}`}
-                  onClick={() => setScopeFilter('my')}
+                  className={`tab-btn ${scopeFilter === 'my' || activeTab === 'my-tasks' ? 'active' : ''}`}
+                  onClick={() => {
+                    setScopeFilter('my');
+                    setActiveTab('my-tasks');
+                  }}
                   style={{ padding: '4px 10px', fontSize: '11.5px' }}
                 >
                   Việc của tôi
                 </button>
                 <button
-                  className={`tab-btn ${scopeFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setScopeFilter('all')}
+                  className={`tab-btn ${scopeFilter === 'all' && activeTab !== 'my-tasks' ? 'active' : ''}`}
+                  onClick={() => {
+                    setScopeFilter('all');
+                    if (activeTab === 'my-tasks') setActiveTab('kanban');
+                  }}
                   style={{ padding: '4px 10px', fontSize: '11.5px' }}
                 >
                   Toàn nhóm

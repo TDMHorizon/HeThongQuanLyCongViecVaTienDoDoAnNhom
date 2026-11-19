@@ -3,19 +3,32 @@ import { useProject } from '../context/ProjectContext.jsx';
 import { CHIBI_ASSETS } from '../constants/chibiAssets.js';
 
 export default function BannerRoleBar() {
-  const { currentUserId, setCurrentUserId, isLecturer, isLeader, chibiMode, toggleChibiMode } = useProject();
+  const { authUser, isLecturer, isLeader, chibiMode, toggleChibiMode, logout, setIsLoginModalOpen } = useProject();
 
-  let permissionHint = '';
-  if (isLecturer) {
-    permissionHint = 'Quyền hạn: Xem toàn cảnh đồ án, đánh giá mốc Milestone & khóa tiến độ';
-  } else if (isLeader) {
-    permissionHint = 'Quyền hạn: Quản trị nhóm, phân việc, tự chấm tiến độ & chốt khóa';
-  } else {
-    permissionHint = 'Quyền hạn: Tự chấm tiến độ cho bản thân (25%-100%), gửi phản hồi sticker & nộp tệp';
+  // Nhãn quyền hạn hiển thị trên banner
+  let permissionHint = 'Chế độ xem chung (Khách) &bull; Đăng nhập để tự chấm tiến độ và nộp tài liệu';
+  let roleLabel = 'Khách';
+  let badgeSrc = null;
+
+  if (authUser) {
+    if (isLecturer) {
+      permissionHint = 'Quyền hạn: Xem toàn cảnh đồ án, đánh giá mốc Milestone & khóa tiến độ';
+      roleLabel = 'Giảng viên hướng dẫn';
+      badgeSrc = CHIBI_ASSETS.badges?.review10;
+    } else if (isLeader) {
+      permissionHint = 'Quyền hạn: Quản trị nhóm, phân việc, tự chấm tiến độ & chốt khóa';
+      roleLabel = 'Nhóm trưởng';
+      badgeSrc = CHIBI_ASSETS.badges?.leader;
+    } else {
+      permissionHint = 'Quyền hạn: Tự chấm tiến độ cho bản thân (25%-100%), gửi phản hồi sticker & nộp tệp';
+      roleLabel = 'Thành viên';
+      badgeSrc = CHIBI_ASSETS.badges?.fresher;
+    }
   }
 
   return (
     <div className="demo-role-banner">
+      {/* Bên trái: Logo + Tiêu đề đồ án */}
       <div className="banner-title">
         {chibiMode && (
           <img
@@ -30,57 +43,57 @@ export default function BannerRoleBar() {
         </span>
       </div>
 
-      <div className="role-switch-buttons">
-        <span style={{ alignSelf: 'center', color: '#a1a1aa', fontSize: '11.5px', marginRight: '4px' }}>
-          Vai trò:
-        </span>
-        <button
-          className={`btn-role-tab ${currentUserId === 'u-gv-01' ? 'active' : ''}`}
-          onClick={() => setCurrentUserId('u-gv-01')}
-          title="Xem với vai trò Giảng viên hướng dẫn"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          {chibiMode && (
-            <img
-              src={CHIBI_ASSETS.badges.review10}
-              alt="GV"
-              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
-            />
-          )}
-          <span>ThS. Bùi Phú Khuyên (GVHD)</span>
-        </button>
-        <button
-          className={`btn-role-tab ${currentUserId === 'u-sv-01' ? 'active' : ''}`}
-          onClick={() => setCurrentUserId('u-sv-01')}
-          title="Xem với vai trò Nhóm trưởng (Tự chấm & Quản lý)"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          {chibiMode && (
-            <img
-              src={CHIBI_ASSETS.badges.leader}
-              alt="Leader"
-              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
-            />
-          )}
-          <span>Đỗ Minh Trực (Nhóm trưởng)</span>
-        </button>
-        <button
-          className={`btn-role-tab ${currentUserId === 'u-sv-02' ? 'active' : ''}`}
-          onClick={() => setCurrentUserId('u-sv-02')}
-          title="Xem với vai trò Thành viên (Tự chấm tiến độ bản thân)"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          {chibiMode && (
-            <img
-              src={CHIBI_ASSETS.badges.fresher}
-              alt="Member"
-              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
-            />
-          )}
-          <span>Trần Minh Duy (Thành viên)</span>
-        </button>
+      {/* Bên phải: Thông tin user đang đăng nhập + nút Chibi + nút Đăng xuất / Đăng nhập */}
+      <div className="role-switch-buttons" style={{ display: 'flex', alignItems: 'center' }}>
+        {authUser ? (
+          <>
+            <div className="banner-user-info">
+              {chibiMode && badgeSrc && (
+                <img
+                  src={badgeSrc}
+                  alt={roleLabel}
+                  style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                />
+              )}
+              <div className="banner-user-texts">
+                <span className="banner-user-name">{authUser.ho_ten}</span>
+                <span className="banner-user-role">{roleLabel}</span>
+              </div>
+            </div>
 
-        {/* Chibi Mascot Mode Toggle Button */}
+            <button
+              className="btn-logout"
+              onClick={logout}
+              title="Đăng xuất khỏi hệ thống"
+            >
+              Đăng xuất
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn-login-trigger"
+            onClick={() => setIsLoginModalOpen(true)}
+            title="Đăng nhập tài khoản"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 14px',
+              background: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>🔑 Đăng nhập</span>
+          </button>
+        )}
+
+        {/* Chibi Mascot Mode Toggle */}
         <button
           className={`btn-chibi-toggle ${chibiMode ? 'active' : ''}`}
           onClick={toggleChibiMode}

@@ -2226,3 +2226,335 @@ button, input, select, textarea {
   display: none !important;
 }
 
+
+/* ============================================================
+   LOGIN SCREEN
+   ============================================================ */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.login-card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.login-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+
+.login-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f4f4f5;
+  letter-spacing: -0.3px;
+}
+
+.login-subtitle {
+  font-size: 11.5px;
+  color: #71717a;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Quick login buttons */
+.login-quick-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-quick-label {
+  font-size: 11.5px;
+  color: #71717a;
+  font-weight: 500;
+}
+
+.login-quick-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  text-align: left;
+}
+
+.login-quick-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0.9;
+}
+
+.login-quick-role {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.75;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.login-quick-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Divider */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3f3f46;
+  font-size: 11.5px;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #27272a;
+}
+.login-divider span {
+  color: #52525b;
+  white-space: nowrap;
+}
+
+/* Form fields */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.login-input {
+  background: #09090b;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: #f4f4f5;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+
+.login-input:focus {
+  border-color: #3b82f6;
+}
+
+.login-pass-wrap {
+  position: relative;
+}
+
+.login-pass-wrap .login-input {
+  padding-right: 36px;
+}
+
+.login-show-pass {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 0;
+  color: #71717a;
+  line-height: 1;
+}
+
+.login-hint {
+  font-size: 11px;
+  color: #52525b;
+}
+
+.login-error {
+  background: rgba(185, 28, 28, 0.12);
+  border: 1px solid rgba(185, 28, 28, 0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: #fca5a5;
+}
+
+.login-submit {
+  background: #1d4ed8;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  letter-spacing: 0.2px;
+}
+
+.login-submit:hover:not(:disabled) {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  font-size: 11px;
+  color: #3f3f46;
+  text-align: center;
+  margin-top: -4px;
+}
+
+/* ============================================================
+   BANNER USER INFO & LOGOUT BUTTON
+   ============================================================ */
+.banner-user-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  margin-right: 4px;
+}
+
+.banner-user-texts {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.banner-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.banner-user-role {
+  font-size: 10.5px;
+  color: #71717a;
+  font-weight: 500;
+}
+
+.btn-logout {
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-logout:hover {
+  background: #3f1515;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+/* ============================================================
+   TASK DUE DATE BADGE — Hạn chót trên thẻ Kanban
+   ============================================================ */
+.task-due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  width: fit-content;
+  font-variant-numeric: tabular-nums;
+  color: #000000;
+}
+
+.task-due-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* Quá hạn */
+.task-due-overdue {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #000000;
+}
+
+/* Sắp đến hạn (<=2 ngày) */
+.task-due-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #000000;
+}
+
+/* Bình thường */
+.task-due-normal {
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  color: #000000;
+}
+
+/* Đã hoàn thành */
+.task-due-done {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #000000;
+}

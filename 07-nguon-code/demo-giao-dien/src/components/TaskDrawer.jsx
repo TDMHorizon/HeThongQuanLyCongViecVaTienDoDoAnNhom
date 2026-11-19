@@ -1,8 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { apiService } from '../services/apiService.js';
 import { formatDate, formatFileSize } from '../utils/formatters.js';
 import { CHIBI_ASSETS, renderCommentWithStickers } from '../constants/chibiAssets.js';
+
+// Tiện ích hiển thị icon theo loại tệp
+function getFileIcon(fileName) {
+  if (!fileName) return '📎';
+  const ext = fileName.toLowerCase().split('.').pop();
+  if (ext === 'pdf') return '📕';
+  if (['doc', 'docx'].includes(ext)) return '📘';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+  if (['ppt', 'pptx'].includes(ext)) return '📙';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) return '🖼️';
+  if (['txt', 'md', 'json', 'sql', 'js', 'html', 'css'].includes(ext)) return '📝';
+  return '📎';
+}
 
 export default function TaskDrawer() {
   const {
@@ -16,6 +30,8 @@ export default function TaskDrawer() {
     canCreateTask,
     canLockTask,
     canEditTaskProgress,
+    isLeader,
+    isLecturer,
     reload,
     chibiMode
   } = useProject();
@@ -32,6 +48,9 @@ export default function TaskDrawer() {
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
+  const fileInputRef = useRef(null);
 
   // Sync state when selectedTask changes
   useEffect(() => {
@@ -136,21 +155,64 @@ export default function TaskDrawer() {
     }
   };
 
-  const handleAddAttachment = async () => {
-    const fileName = prompt('Nhập tên tệp tài liệu / báo cáo muốn nộp đính kèm:', 'Bao-cao-tuan-hoan-chinh.pdf');
-    if (!fileName) return;
+  // Xử lý nộp tệp tài liệu thực tế từ máy tính
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Giới hạn dung lượng 25MB
+    if (file.size > 25 * 1024 * 1024) {
+      alert('Tệp vượt quá dung lượng tối đa cho phép (25MB).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     try {
-      await apiService.addAttachment(selectedTask.ma_cong_viec, {
-        userId: currentUserId,
-        ten_tep: fileName,
-        loai_tep: fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
-        dung_luong: Math.floor(Math.random() * 800000) + 20000
-      });
+      setIsUploading(true);
+      setUploadSuccessMsg('');
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result;
+          await apiService.addAttachment(selectedTask.ma_cong_viec, {
+            userId: currentUserId,
+            ten_tep: file.name,
+            loai_tep: file.type || 'application/octet-stream',
+            dung_luong: file.size,
+            du_lieu_base64: base64Data
+          });
+          const updated = await apiService.getAttachments(selectedTask.ma_cong_viec);
+          setAttachments(updated);
+          setUploadSuccessMsg(`Đã nộp thành công tệp: ${file.name}`);
+          setTimeout(() => setUploadSuccessMsg(''), 4000);
+        } catch (err) {
+          alert(`Lỗi khi nộp tệp: ${err.message}`);
+        } finally {
+          setIsUploading(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+      reader.onerror = () => {
+        alert('Lỗi đọc tệp tin từ máy tính.');
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert(`Lỗi nộp tệp: ${err.message}`);
+      setIsUploading(false);
+    }
+  };
+
+  // Xóa tệp đính kèm
+  const handleDeleteAttachment = async (fileId, fileName) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa tệp "${fileName}" không?`)) return;
+    try {
+      await apiService.deleteAttachment(fileId);
       const updated = await apiService.getAttachments(selectedTask.ma_cong_viec);
       setAttachments(updated);
     } catch (err) {
-      alert(`Lỗi nộp tệp: ${err.message}`);
+      alert(`Lỗi khi xóa tệp: ${err.message}`);
     }
   };
 
@@ -546,49 +608,181 @@ export default function TaskDrawer() {
           </div>
 
           {/* Attachments Section */}
-          <h4 className="drawer-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {chibiMode && (
-              <img src={CHIBI_ASSETS.icons.upload} alt="Upload" style={{ width: '15px', height: '15px', objectFit: 'contain' }} />
-            )}
-            <span>Tệp đính kèm</span>
-          </h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px', marginBottom: '8px' }}>
+            <h4 className="drawer-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+              {chibiMode && (
+                <img src={CHIBI_ASSETS.icons.upload} alt="Upload" style={{ width: '15px', height: '15px', objectFit: 'contain' }} />
+              )}
+              <span>Tài liệu & Tệp nộp ({attachments.length})</span>
+            </h4>
+            <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>Hỗ trợ PDF, Word, Excel, ZIP...</span>
+          </div>
+
+          {/* Thông báo nộp thành công */}
+          {uploadSuccessMsg && (
+            <div style={{
+              background: 'rgba(34, 197, 94, 0.12)',
+              border: '1px solid rgba(34, 197, 94, 0.4)',
+              color: '#15803d',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 600,
+              marginBottom: '8px'
+            }}>
+              ✅ {uploadSuccessMsg}
+            </div>
+          )}
+
+          {/* Danh sách tệp đính kèm */}
           <div id="drawer-attachments-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {attachments.length === 0 ? (
-              <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Chưa có tệp đính kèm.</div>
+              <div style={{
+                fontSize: '12px',
+                color: 'var(--text-subtle)',
+                background: 'var(--surface)',
+                border: '1px dashed var(--border)',
+                borderRadius: '8px',
+                padding: '16px',
+                textAlign: 'center'
+              }}>
+                Chưa có tài liệu hoặc báo cáo nào được nộp cho công việc này.
+              </div>
             ) : (
-              attachments.map(f => (
-                <div
-                  key={f.ma_tep || f.ten_tep}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 10px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '12px'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>{f.ten_tep}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
-                      {formatFileSize(f.dung_luong)} &bull; {f.ten_nguoi_tai_len || 'Đính kèm'}
+              attachments.map(f => {
+                const canDelete = isLeader || isLecturer || f.ma_nguoi_dung === currentUserId;
+                const fileIcon = getFileIcon(f.ten_tep);
+                return (
+                  <div
+                    key={f.ma_tep || f.ten_tep}
+                    className="attachment-item-card"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '12.5px',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '20px', flexShrink: 0 }}>{fileIcon}</span>
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: 'var(--text)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={f.ten_tep}
+                        >
+                          {f.ten_tep}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-subtle)', display: 'flex', gap: '6px' }}>
+                          <span>{formatFileSize(f.dung_luong)}</span>
+                          <span>&bull;</span>
+                          <span>{f.ten_nguoi_tai_len || 'Thành viên'}</span>
+                          {f.thoi_gian_tao && (
+                            <>
+                              <span>&bull;</span>
+                              <span>{formatDate(f.thoi_gian_tao)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      {/* Nút Xem / Tải về */}
+                      <a
+                        href={f.duong_dan_tep || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={f.ten_tep}
+                        className="btn-attachment-action"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: '#ffffff',
+                          color: '#1d4ed8',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          cursor: 'pointer'
+                        }}
+                        title="Tải về tệp tài liệu"
+                      >
+                        📥 Tải về
+                      </a>
+
+                      {/* Nút Xóa tệp (nếu có quyền) */}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(f.ma_tep, f.ten_tep)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '6px',
+                            border: '1px solid #fee2e2',
+                            background: '#fef2f2',
+                            color: '#b91c1c',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                          title="Xóa tệp đính kèm này"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <span className="meta-pill" style={{ fontSize: '10px' }}>{f.loai_tep}</span>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
-          <div style={{ marginMount: '6px', marginTop: '6px' }}>
+
+          {/* Nút chọn tệp từ máy tính */}
+          <div style={{ marginTop: '10px' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
             <button
+              type="button"
               className="btn btn-outline btn-sm"
-              id="btn-upload-file-demo"
-              style={{ width: '100%' }}
-              onClick={handleAddAttachment}
+              id="btn-upload-file-real"
+              disabled={isUploading}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '9px 12px',
+                fontWeight: 600,
+                border: '1px solid #3b82f6',
+                color: '#1d4ed8',
+                background: '#eff6ff',
+                cursor: isUploading ? 'not-allowed' : 'pointer'
+              }}
+              onClick={() => fileInputRef.current?.click()}
             >
-              + Nộp tệp tài liệu / báo cáo đính kèm
+              <span>{isUploading ? '⏳ Đang nộp tệp...' : '📁 Chọn tệp từ máy để nộp tài liệu / báo cáo'}</span>
             </button>
           </div>
         </div>

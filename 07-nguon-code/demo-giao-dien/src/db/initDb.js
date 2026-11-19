@@ -33,9 +33,9 @@ if (userCount === 0) {
     INSERT INTO nguoi_dung (ma_nguoi_dung, email, mat_khau_bam, ho_ten, vai_tro_he_thong, trang_thai_hoat_dong)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
-  insertUser.run('u-gv-01', 'khuyenbp@huflit.edu.vn', '$2b$10$hashed_gv_pass_demo', 'ThS. Bùi Phú Khuyên', 'giangvien', 1);
-  insertUser.run('u-sv-01', '2180606023@huflit.edu.vn', '$2b$10$hashed_truc_pass_demo', 'Đỗ Minh Trực', 'sinhvien', 1);
-  insertUser.run('u-sv-02', '2280600494@huflit.edu.vn', '$2b$10$hashed_duy_pass_demo', 'Trần Minh Duy', 'sinhvien', 1);
+  insertUser.run('u-gv-01', 'khuyenbp@hutech.edu.vn', '$2b$10$hashed_gv_pass_demo', 'ThS. Bùi Phú Khuyên', 'giangvien', 1);
+  insertUser.run('u-sv-01', '2180606023@hutech.edu.vn', '$2b$10$hashed_truc_pass_demo', 'Đỗ Minh Trực', 'sinhvien', 1);
+  insertUser.run('u-sv-02', '2280600494@hutech.edu.vn', '$2b$10$hashed_duy_pass_demo', 'Trần Minh Duy', 'sinhvien', 1);
 
   // 2. DO_AN
   const insertProject = db.prepare(`

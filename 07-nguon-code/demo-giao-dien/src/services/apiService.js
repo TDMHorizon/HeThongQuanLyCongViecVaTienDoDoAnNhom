@@ -15,14 +15,26 @@ async function request(endpoint, options = {}) {
   };
 
   const response = await fetch(url, config);
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Lỗi không xác định' }));
-    throw new Error(err.error || `HTTP error ${response.status}`);
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { error: `Máy chủ trả về phản hồi không hợp lệ (${response.status}). Có thể bạn cần khởi động lại server.js.` };
   }
-  return response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP error ${response.status}`);
+  }
+  return data;
 }
 
 export const apiService = {
+  login: (email, matKhau) => request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, mat_khau: matKhau })
+  }),
+
   getProject: () => request('/project'),
   getUsers: () => request('/users'),
   getMilestones: () => request('/milestones'),
@@ -68,6 +80,9 @@ export const apiService = {
   addAttachment: (taskId, data) => request(`/tasks/${taskId}/attachments`, {
     method: 'POST',
     body: JSON.stringify(data)
+  }),
+  deleteAttachment: (fileId) => request(`/attachments/${fileId}`, {
+    method: 'DELETE'
   }),
 
   getTeam: () => request('/team'),

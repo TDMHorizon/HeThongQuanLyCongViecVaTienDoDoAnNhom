@@ -3,6 +3,16 @@ import { apiService } from '../services/apiService.js';
 
 const ProjectContext = createContext(null);
 
+// Lấy thông tin đăng nhập đã lưu từ localStorage (nếu có)
+function getSavedAuth() {
+  try {
+    const raw = localStorage.getItem('dacs_auth_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ProjectProvider({ children }) {
   const [project, setProject] = useState(null);
   const [users, setUsers] = useState([]);
@@ -10,15 +20,47 @@ export function ProjectProvider({ children }) {
   const [tasks, setTasks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  
-  const [currentUserId, setCurrentUserId] = useState('u-sv-01');
+
+  // Auth: lưu user đang đăng nhập vào localStorage
+  const [authUser, setAuthUser] = useState(() => getSavedAuth());
+
+  const [currentUserId, setCurrentUserId] = useState(() => {
+    const saved = getSavedAuth();
+    return saved?.ma_nguoi_dung || null;
+  });
   const [activeTab, setActiveTab] = useState('kanban');
   const [filterMilestoneId, setFilterMilestoneId] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  // Nếu chưa có session đăng nhập thì mở modal ngay từ đầu
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(() => !getSavedAuth());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Hành động: Đăng nhập (lưu authUser vào state và localStorage)
+  const login = useCallback((user) => {
+    setAuthUser(user);
+    setCurrentUserId(user.ma_nguoi_dung);
+    setIsLoginModalOpen(false);
+    try {
+      localStorage.setItem('dacs_auth_user', JSON.stringify(user));
+    } catch (e) {
+      console.warn('Không thể lưu auth vào localStorage:', e);
+    }
+  }, []);
+
+  // Hành động: Đăng xuất (vẫn ở trang chính, chuyển về bảng Kanban toàn nhóm)
+  const logout = useCallback(() => {
+    setAuthUser(null);
+    setCurrentUserId(null);
+    setScopeFilter('all');
+    setActiveTab('kanban');
+    try {
+      localStorage.removeItem('dacs_auth_user');
+    } catch (e) {}
+    setIsLoginModalOpen(true);
+  }, []);
 
   // Chibi Mascot Mode: Mặc định bật, lưu trong localStorage
   const [chibiMode, setChibiMode] = useState(() => {
@@ -116,13 +158,13 @@ export function ProjectProvider({ children }) {
     return task.ma_nguoi_thuc_hien === currentUserId;
   }, [isLeader, isLecturer, currentUserId]);
 
-  // Filtered tasks (GVHD luôn xem toàn bộ, sinh viên có thể lọc việc cá nhân)
+  // Filtered tasks (GVHD luôn xem toàn bộ, sinh viên có thể lọc việc cá nhân khi đã đăng nhập)
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
       if (filterMilestoneId !== 'all' && t.ma_moc !== filterMilestoneId) {
         return false;
       }
-      if (!isLecturer && scopeFilter === 'my' && t.ma_nguoi_thuc_hien !== currentUserId) {
+      if (currentUserId && !isLecturer && scopeFilter === 'my' && t.ma_nguoi_thuc_hien !== currentUserId) {
         return false;
       }
       return true;
@@ -243,6 +285,7 @@ export function ProjectProvider({ children }) {
     tasks,
     teamMembers,
     notifications,
+    authUser,
     currentUserId,
     activeTab,
     filterMilestoneId,
@@ -250,6 +293,7 @@ export function ProjectProvider({ children }) {
     selectedTaskId,
     selectedTask,
     isTaskModalOpen,
+    isLoginModalOpen,
     loading,
     error,
     chibiMode,
@@ -269,7 +313,10 @@ export function ProjectProvider({ children }) {
     setScopeFilter,
     setSelectedTaskId,
     setIsTaskModalOpen,
+    setIsLoginModalOpen,
     toggleChibiMode,
+    login,
+    logout,
     selfRateTask,
     createTask: handleCreateTask,
     updateTaskProgress: handleUpdateTaskProgress,

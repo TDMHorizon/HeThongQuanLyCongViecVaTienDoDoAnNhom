@@ -1,8 +1,31 @@
 import React from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
-import { getInitials } from '../utils/formatters.js';
+import { getInitials, isTaskOverdue } from '../utils/formatters.js';
 import { CHIBI_ASSETS } from '../constants/chibiAssets.js';
 import MiniCalendarWidget from './MiniCalendarWidget.jsx';
+
+// Hàm tính trạng thái hạn chót: 'overdue' | 'warning' | 'normal' | 'done'
+function getDueDateStatus(task) {
+  if (task.trang_thai === 'hoan_thanh' || task.phan_tram_tien_do >= 100) return 'done';
+  if (task.trang_thai === 'tre_han') return 'overdue';
+  if (!task.han_chot) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(task.han_chot);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 2) return 'warning';
+  return 'normal';
+}
+
+// Hàm định dạng ngày ngắn gọn: "20 Th11, 2026"
+function formatDueDate(hanChot) {
+  if (!hanChot) return '';
+  const d = new Date(hanChot);
+  if (isNaN(d.getTime())) return hanChot;
+  return `${d.getDate()} Th${d.getMonth() + 1}, ${d.getFullYear()}`;
+}
 
 export default function KanbanBoard() {
   const { filteredTasks, setSelectedTaskId, selfRateTask, currentUserId, isLeader, isLecturer, chibiMode } = useProject();
@@ -21,7 +44,14 @@ export default function KanbanBoard() {
         <div className="kanban-board-container">
           <div className="kanban-board">
             {columns.map(col => {
-              const colTasks = filteredTasks.filter(t => t.trang_thai === col.key);
+              // Task trễ hạn theo ngày thực tế luôn vào cột "Trễ hạn", bất kể trang_thai trong DB
+              const colTasks = filteredTasks.filter(t => {
+                if (col.key === 'tre_han') {
+                  return isTaskOverdue(t);
+                }
+                // Các cột khác: đúng trạng thái VÀ không bị trễ hạn thực tế
+                return t.trang_thai === col.key && !isTaskOverdue(t);
+              });
               return (
                 <div key={col.key} className="kanban-col" data-status={col.key}>
                   <div className="kanban-col-header">
@@ -112,6 +142,24 @@ export default function KanbanBoard() {
                                 </span>
                               )}
                             </div>
+
+                            {/* Badge hạn chót */}
+                            {task.han_chot && (() => {
+                              const dueSt = getDueDateStatus(task);
+                              const dueTxt = formatDueDate(task.han_chot);
+                              const dueLabel = dueSt === 'overdue' 
+                                ? `Đã hết hạn vào ngày ${dueTxt}` 
+                                : `Hạn: ${dueTxt}`;
+
+                              return (
+                                <div className={`task-due-badge task-due-${dueSt}`}>
+                                  <span className="task-due-icon">
+                                    {dueSt === 'overdue' ? '🔥' : dueSt === 'warning' ? '⚠️' : dueSt === 'done' ? '✅' : '📅'}
+                                  </span>
+                                  <span>{dueLabel}</span>
+                                </div>
+                              );
+                            })()}
 
                             {/* Dải nút Tự chấm tiến độ nhanh cho bản thân */}
                             {canSelfRate && (

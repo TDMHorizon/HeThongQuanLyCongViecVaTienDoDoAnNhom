@@ -12,9 +12,21 @@ import TeamView from './components/TeamView.jsx';
 import NotificationCenter from './components/NotificationCenter.jsx';
 import TaskDrawer from './components/TaskDrawer.jsx';
 import TaskModal from './components/TaskModal.jsx';
+import LoginScreen from './components/LoginScreen.jsx';
+import MyTasksView from './components/MyTasksView.jsx';
 
 export default function App() {
-  const { activeTab, setActiveTab, loading, error, chibiMode } = useProject();
+  const {
+    activeTab,
+    setActiveTab,
+    loading,
+    error,
+    chibiMode,
+    authUser,
+    login,
+    isLoginModalOpen,
+    setIsLoginModalOpen
+  } = useProject();
 
   if (loading) {
     return (
@@ -62,6 +74,7 @@ export default function App() {
             {(activeTab === 'kanban' || activeTab === 'table') && <KpiCards />}
 
             {/* Dynamic View rendering */}
+            {activeTab === 'my-tasks' && <MyTasksView />}
             {activeTab === 'kanban' && <KanbanBoard />}
             {activeTab === 'table' && <TableView />}
             {activeTab === 'milestones' && <MilestonesView />}
@@ -73,6 +86,18 @@ export default function App() {
 
       <TaskDrawer />
       <TaskModal />
+
+      {/* Cửa sổ Đăng nhập — bắt buộc đăng nhập, không cho phép đóng */}
+      {isLoginModalOpen && (
+        <LoginScreen
+          onLoginSuccess={(user) => {
+            login(user);
+            setIsLoginModalOpen(false);
+          }}
+          onClose={null}
+          canClose={false}
+        />
+      )}
     </div>
   );
 }

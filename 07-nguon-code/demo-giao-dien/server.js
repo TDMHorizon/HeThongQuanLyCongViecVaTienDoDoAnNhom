@@ -18,9 +18,30 @@ const MIME_TYPES = {
   '.json': 'application/json; charset=UTF-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.zip': 'application/zip',
+  '.rar': 'application/x-rar-compressed',
+  '.txt': 'text/plain; charset=UTF-8',
+  '.md': 'text/markdown; charset=UTF-8'
 };
+
+// Đảm bảo thư mục uploads tồn tại
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (e) {
+    console.warn('[SERVER] Không thể tạo thư mục uploads:', e);
+  }
+}
 
 // Helper to send JSON response
 function sendJson(res, statusCode, data) {
@@ -286,22 +307,66 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, files);
     }
     if (method === 'POST') {
-      const data = await parseBody(req);
-      const newFileId = `tep-${Date.now()}`;
-      db.prepare(`
-        INSERT INTO tep_dinh_kem (ma_tep, ma_cong_viec, ma_nguoi_dung, ten_tep, duong_dan_tep, loai_tep, dung_luong)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        newFileId, taskId, data.userId || 'u-sv-01',
-        data.ten_tep, `/uploads/${data.ten_tep}`,
-        data.loai_tep || 'application/octet-stream',
-        data.dung_luong || 25000
-      );
-      return sendJson(res, 201, { success: true, ma_tep: newFileId });
+      try {
+        const data = await parseBody(req);
+        const newFileId = `tep-${Date.now()}`;
+        const rawFileName = data.ten_tep || `tai-lieu-${Date.now()}.bin`;
+        
+        // Chuẩn hóa tên tệp lưu trên ổ đĩa để tránh xung đột
+        const ext = path.extname(rawFileName) || '';
+        const baseName = path.basename(rawFileName, ext).replace(/[^a-zA-Z0-9_\u00C0-\u1EF9-]/g, '_');
+        const safeDiskName = `${Date.now()}_${baseName}${ext}`;
+        const relativeFilePath = `/uploads/${safeDiskName}`;
+        const targetDiskPath = path.join(uploadsDir, safeDiskName);
+
+        // Lưu dữ liệu file nhị phân nếu được gửi dạng base64
+        let fileSize = data.dung_luong || 0;
+        if (data.du_lieu_base64) {
+          const base64Data = data.du_lieu_base64.replace(/^data:.*?;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          fs.writeFileSync(targetDiskPath, buffer);
+          fileSize = buffer.length;
+        }
+
+        db.prepare(`
+          INSERT INTO tep_dinh_kem (ma_tep, ma_cong_viec, ma_nguoi_dung, ten_tep, duong_dan_tep, loai_tep, dung_luong)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          newFileId, taskId, data.userId || 'u-sv-01',
+          rawFileName, relativeFilePath,
+          data.loai_tep || 'application/octet-stream',
+          fileSize
+        );
+        return sendJson(res, 201, { success: true, ma_tep: newFileId, duong_dan_tep: relativeFilePath });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
     }
   }
 
-  // 11. GET /api/team
+  // 11. DELETE /api/attachments/:id hoặc /api/tasks/:taskId/attachments/:id (Xóa tệp đính kèm)
+  const deleteFileMatch = pathname.match(/^\/?api\/attachments\/([^/]+)$/) || pathname.match(/^\/?api\/tasks\/[^/]+\/attachments\/([^/]+)$/);
+  if (method === 'DELETE' && deleteFileMatch) {
+    const fileId = deleteFileMatch[1];
+    try {
+      const file = db.prepare(`SELECT * FROM tep_dinh_kem WHERE ma_tep = ?`).get(fileId);
+      if (file) {
+        if (file.duong_dan_tep && file.duong_dan_tep.startsWith('/uploads/')) {
+          const diskRel = file.duong_dan_tep.replace(/^\/uploads\//, '');
+          const diskPath = path.join(uploadsDir, diskRel);
+          if (fs.existsSync(diskPath)) {
+            try { fs.unlinkSync(diskPath); } catch (e) {}
+          }
+        }
+        db.prepare(`DELETE FROM tep_dinh_kem WHERE ma_tep = ?`).run(fileId);
+      }
+      return sendJson(res, 200, { success: true });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  // 12. GET /api/team
   if (method === 'GET' && (pathname === 'api/team' || pathname === '/api/team')) {
     const members = db.prepare(`
       SELECT tv.ma_thanh_vien_nhom, tv.vai_tro_trong_nhom, tv.thoi_gian_tham_gia,
@@ -314,7 +379,30 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { members, instructor: gv });
   }
 
-  // 12. GET /api/notifications
+  // 12. POST /api/auth/login — Đăng nhập bằng email (demo: so khớp email, bỏ qua hash)
+  if (method === 'POST' && (pathname === 'api/auth/login' || pathname === '/api/auth/login')) {
+    try {
+      const data = await parseBody(req);
+      const { email, mat_khau } = data;
+      if (!email) return sendJson(res, 400, { error: 'Thiếu email đăng nhập' });
+
+      const user = db.prepare(`
+        SELECT u.ma_nguoi_dung, u.email, u.ho_ten, u.vai_tro_he_thong, u.trang_thai_hoat_dong,
+               tv.vai_tro_trong_nhom
+        FROM nguoi_dung u
+        LEFT JOIN thanh_vien_nhom tv ON u.ma_nguoi_dung = tv.ma_nguoi_dung
+        WHERE u.email = ? AND u.trang_thai_hoat_dong = 1
+      `).get(email);
+
+      if (!user) return sendJson(res, 401, { error: 'Email không tồn tại hoặc tài khoản bị vô hiệu hóa' });
+      // Demo: chấp nhận mọi mật khẩu (vì mat_khau_bam là hash demo)
+      return sendJson(res, 200, { success: true, user });
+    } catch (err) {
+      return sendJson(res, 500, { error: err.message });
+    }
+  }
+
+  // 13. GET /api/notifications
   if (method === 'GET' && (pathname === 'api/notifications' || pathname === '/api/notifications')) {
     const userId = parsedUrl.searchParams.get('userId');
     const query = userId 
@@ -322,6 +410,34 @@ const server = http.createServer(async (req, res) => {
       : `SELECT * FROM thong_bao ORDER BY thoi_gian_tao DESC`;
     const notifications = userId ? db.prepare(query).all(userId) : db.prepare(query).all();
     return sendJson(res, 200, notifications);
+  }
+
+  // ==========================================
+  // SERVE UPLOADED FILES (/uploads/...)
+  // ==========================================
+  if (pathname.startsWith('/uploads/')) {
+    const safeRel = pathname.replace(/^\/uploads\//, '');
+    const uploadFilePath = path.join(uploadsDir, safeRel);
+    
+    // Ngăn chặn Directory Traversal
+    if (!uploadFilePath.startsWith(uploadsDir)) {
+      res.writeHead(403);
+      return res.end('Forbidden');
+    }
+
+    if (fs.existsSync(uploadFilePath) && fs.statSync(uploadFilePath).isFile()) {
+      const ext = path.extname(uploadFilePath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Content-Disposition': `inline; filename="${encodeURIComponent(path.basename(uploadFilePath))}"`
+      });
+      return fs.createReadStream(uploadFilePath).pipe(res);
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=UTF-8' });
+      return res.end('404 Không tìm thấy tệp đính kèm');
+    }
   }
 
   // ==========================================

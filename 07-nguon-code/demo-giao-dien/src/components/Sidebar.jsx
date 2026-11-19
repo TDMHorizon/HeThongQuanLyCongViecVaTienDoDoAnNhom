@@ -7,20 +7,23 @@ export default function Sidebar() {
   const {
     project,
     currentUser,
+    currentUserId,
     isLecturer,
     isLeader,
     activeTab,
     setActiveTab,
+    tasks,
     filteredTasks,
     milestones,
     notifications,
     teamMembers,
-    chibiMode
+    chibiMode,
+    setIsLoginModalOpen
   } = useProject();
 
   const brandName = project?.team?.ten_nhom || 'Nhóm Đồ án Môn học 05';
 
-  let roleText = 'Thành viên';
+  let roleText = currentUser ? 'Thành viên' : 'Chế độ khách';
   let frameSrc = CHIBI_ASSETS.avatarFrames.member;
   let roleBadgeSrc = CHIBI_ASSETS.badges.fresher;
 
@@ -35,6 +38,9 @@ export default function Sidebar() {
   }
 
   const unreadCount = notifications.filter(n => !n.trang_thai_doc).length;
+
+  // Đếm công việc cá nhân của người đang đăng nhập
+  const myTasksCount = (tasks || []).filter(t => t.ma_nguoi_thuc_hien === currentUserId).length;
 
   return (
     <aside className="sidebar">
@@ -64,6 +70,8 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <div className="nav-section-title">Không gian làm việc</div>
+
+        {/* 1. Bảng việc Kanban */}
         <div
           className={`nav-item ${activeTab === 'kanban' ? 'active' : ''}`}
           onClick={() => setActiveTab('kanban')}
@@ -81,6 +89,8 @@ export default function Sidebar() {
           <span>Bảng việc (Kanban)</span>
           <span className="nav-count">{filteredTasks.length}</span>
         </div>
+
+
         <div
           className={`nav-item ${activeTab === 'table' ? 'active' : ''}`}
           onClick={() => setActiveTab('table')}
@@ -151,7 +161,24 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="current-user-card" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div
+          className="current-user-card"
+          onClick={() => {
+            if (!currentUser && setIsLoginModalOpen) {
+              setIsLoginModalOpen(true);
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            cursor: !currentUser ? 'pointer' : 'default',
+            padding: '6px 8px',
+            borderRadius: '8px',
+            transition: 'background 0.2s ease'
+          }}
+          title={!currentUser ? 'Bấm để đăng nhập' : ''}
+        >
           <div className="avatar-frame-wrap" style={{ position: 'relative', width: '48px', height: '48px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div
               className="user-avatar"
@@ -159,19 +186,19 @@ export default function Sidebar() {
                 width: '38px',
                 height: '38px',
                 borderRadius: '50%',
-                background: '#1e293b',
+                background: currentUser ? '#1e293b' : '#2563eb',
                 color: '#ffffff',
                 fontWeight: 700,
-                fontSize: '13px',
+                fontSize: currentUser ? '13px' : '16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
               }}
             >
-              {currentUser ? getInitials(currentUser.ho_ten) : '??'}
+              {currentUser ? getInitials(currentUser.ho_ten) : '👤'}
             </div>
-            {chibiMode && (
+            {chibiMode && currentUser && (
               <img
                 src={frameSrc}
                 alt="Frame"
@@ -190,13 +217,15 @@ export default function Sidebar() {
           </div>
           <div className="user-meta" style={{ minWidth: 0, flex: 1 }}>
             <div className="user-name" style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {currentUser?.ho_ten || 'Đang tải...'}
+              {currentUser?.ho_ten || 'Chế độ khách'}
             </div>
             <div className="user-role-badge" style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-              {chibiMode && (
+              {chibiMode && currentUser && (
                 <img src={roleBadgeSrc} alt="Badge" style={{ width: '15px', height: '15px', objectFit: 'contain' }} />
               )}
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{roleText}</span>
+              <span style={{ fontSize: '11px', color: !currentUser ? '#2563eb' : 'var(--text-muted)', fontWeight: !currentUser ? 600 : 400 }}>
+                {!currentUser ? '🔑 Bấm để đăng nhập' : roleText}
+              </span>
             </div>
           </div>
         </div>
