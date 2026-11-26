@@ -171,38 +171,11 @@ export default function Sidebar() {
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 </svg>
               )}
-              <span style={{ fontWeight: 600 }}>Cổng Lớp & Đề tài</span>
+              <span style={{ fontWeight: 600 }}>Tổng quan Lớp & Đề tài</span>
               <span className="nav-count" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>
                 {topics.length} ĐT
               </span>
             </div>
-
-            <div className="nav-section-title">Các Nhóm trong Lớp ({registeredTopics.length})</div>
-            {registeredTopics.map(t => (
-              <div
-                key={t.ma_do_an}
-                className="nav-item"
-                onClick={() => enterWorkspace(t.ma_do_an)}
-                style={{ fontSize: '12px', padding: '6px 10px', gap: '8px' }}
-                title={`Nhấn để vào không gian Kanban của ${t.team?.ten_nhom}`}
-              >
-                {chibiMode ? (
-                  <img
-                    src={t.quy_mo === 'ca_nhan' ? CHIBI_ASSETS.characters.coding : CHIBI_ASSETS.logos.team}
-                    alt="Group"
-                    style={{ width: '18px', height: '18px', objectFit: 'contain', flexShrink: 0 }}
-                  />
-                ) : (
-                  <span>{t.quy_mo === 'ca_nhan' ? '👤' : '👥'}</span>
-                )}
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.team?.ten_nhom}
-                </span>
-                <span style={{ fontSize: '10.5px', color: '#15803d', fontWeight: 700 }}>
-                  {Number(t.tien_do_tong || 0).toFixed(0)}%
-                </span>
-              </div>
-            ))}
 
             <div className="nav-section-title">Hộp thư</div>
             <div

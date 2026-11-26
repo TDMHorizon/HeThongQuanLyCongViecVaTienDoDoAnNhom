@@ -112,7 +112,7 @@
 │
 └── 7️⃣ KẾT NỐI GITHUB DASHBOARD, TINH GIẢN CỔNG LỚP & KHUNG HƯỚNG DẪN DÀI HẠN
     ├── Phân công Nhóm: [PHAN-CONG-TASK-NHOM.md](./00-ke-hoach/PHAN-CONG-TASK-NHOM.md) (Phần 1: TDMHorizon · Phần 2: Sixduy)
-    ├── Giao diện Tinh giản Cổng Lớp (Task A0): [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) (GV 1 hàng KPI + 3 Tab; SV 1 Thẻ trạng thái + Modal Chi tiết)
+    ├── Giao diện Tinh giản Cổng Lớp & Sidebar: [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) & [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) (Sidebar bỏ danh sách nhóm trùng lặp; GV 1 dòng tóm tắt lớp + 1 Bảng Tổng hợp duy nhất; SV 1 Thẻ trạng thái + Modal Chi tiết)
     ├── Dashboard Tiến độ GitHub (Task A2): [GitHubDashboardView.jsx](./07-nguon-code/demo-giao-dien/src/components/GitHubDashboardView.jsx) (Dòng thời gian Commit, Push theo thành viên, Pull Requests, Branches)
     ├── Khung Hướng dẫn Sử dụng Dài hạn (Task A3): [guideConfig.js](./07-nguon-code/demo-giao-dien/src/constants/guideConfig.js) (`GUIDE_TOUR_ENABLED = false` - Chờ chốt toàn bộ tính năng)
     └── API & CSDL Phụ trợ (Task A1): `GET/POST/DELETE /api/github/*` ──> Bảng phụ trợ `lien_ket_github` (Cache JSON + Ánh xạ GitHub Username, giữ nguyên 9 bảng BCNF)
@@ -238,8 +238,8 @@
 └── 🧩 ÁNH XẠ VÀO 16 REACT COMPONENTS ([src/components/](./07-nguon-code/demo-giao-dien/src/components/)):
     ├── 0. [LoginScreen.jsx](./07-nguon-code/demo-giao-dien/src/components/LoginScreen.jsx) ──> `logos.gearTick` + Modal Đăng nhập chuẩn TasteSkill nền sáng (`@gmail.com` & 4 nút chọn nhanh vai trò)
     ├── 1. [BannerRoleBar.jsx](./07-nguon-code/demo-giao-dien/src/components/BannerRoleBar.jsx) ──> `logos.gearTick`, `badges.review10`, `badges.leader`, `badges.fresher` + Hiển thị user đăng nhập, Đổi tài khoản, Đăng xuất & Tiêu đề chuẩn hóa `HỆ THỐNG QUẢN LÝ ĐỒ ÁN MÔN HỌC`
-    ├── 2. [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) ──> Cổng Môn học Tinh giản GVPTMH (1 hàng 4 KPI + 3 Tab dạng bảng, nút `🐙 GitHub` & `Vào Kanban`) & Sinh viên (1 Thẻ trạng thái + Lưới đề tài tối giản + Modal E Chi tiết đề tài)
-    ├── 3. [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) ──> Full-bleed Brand Banner (`logos.team`), Tab `🐙 GitHub Tiến độ` (`data-tour-id="tour-nav-github"`), Nút quay lại Cổng môn học, Avatar Frames (`gv`, `leader`, `member`), Nav Icons
+    ├── 2. [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) ──> Cổng Môn học Tối giản: GVPTMH (1 dòng tóm tắt lớp + 1 Bảng Tổng hợp duy nhất có lọc nhanh & Modal Chi tiết `MODAL E`, không Chibi/KPI to) & Sinh viên (1 Thẻ trạng thái + Lưới đề tài tối giản + Modal E)
+    ├── 3. [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) ──> Full-bleed Brand Banner (`logos.team`), Cổng Lớp tinh giản (chỉ giữ `Tổng quan Lớp & Đề tài` + `Thông báo hệ thống`, bỏ danh sách nhóm trùng lặp), Tab `🐙 GitHub Tiến độ` (`data-tour-id="tour-nav-github"`), Avatar Frames (`gv`, `leader`, `member`)
     ├── 4. [Header.jsx](./07-nguon-code/demo-giao-dien/src/components/Header.jsx) ──> Nút quay lại Cổng môn học, Đường đua Tiến độ Chibi Marathon (`characters.coLen` -> `coding` -> `deadline` -> `success`) + Cúp đích; Tiêu đề chuẩn `Hệ thống quản lý công việc và tiến độ đồ án môn học`
     ├── 5. [TopicsBankView.jsx](./07-nguon-code/demo-giao-dien/src/components/TopicsBankView.jsx) ──> Banner Lớp học phần nền sáng (`characters.gvReview`), Lưới Đề tài Cá nhân/Nhóm, Modal tạo nhiều đề tài cùng lúc, Modal Lập nhóm & Chọn Nhóm trưởng
     ├── 6. [KpiCards.jsx](./07-nguon-code/demo-giao-dien/src/components/KpiCards.jsx) ──> 4 Thẻ KPI có Watermark Chibi 3D (`chiaTask`, `coding`, `success`, `tieuChay`) + Đếm trễ hạn theo `isTaskOverdue()` + onError Fallback tự phục hồi

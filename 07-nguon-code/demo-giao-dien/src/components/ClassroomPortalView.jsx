@@ -24,9 +24,9 @@ export default function ClassroomPortalView() {
     resetTopicRegistration
   } = useProject();
 
-  // Tab con của GVPTMH: mặc định 'groups' để nhìn tổng quan tiến độ toàn lớp ngay
-  const [lecturerSubTab, setLecturerSubTab] = useState('groups');
-  const [rosterFilter, setRosterFilter] = useState('all'); // 'all' | 'unassigned'
+  // Bộ lọc & tìm kiếm cho Bảng Tổng hợp Lớp duy nhất của GVPTMH
+  const [lecturerFilter, setLecturerFilter] = useState('all'); // 'all' | 'active' | 'open' | 'unassigned_sv'
+  const [lecturerSearch, setLecturerSearch] = useState('');
   const [studentTopicFilter, setStudentTopicFilter] = useState('all'); // 'all' | 'open' | 'taken'
 
   // Modals
@@ -91,6 +91,39 @@ export default function ClassroomPortalView() {
   const openTopics = useMemo(() => {
     return topics.filter(t => !t.da_dang_ky);
   }, [topics]);
+
+  // Sinh viên chưa có nhóm & tiến độ trung bình lớp (phục vụ thanh tổng hợp GVPTMH)
+  const unassignedStudents = useMemo(() => {
+    return students.filter(s => !s.da_co_nhom);
+  }, [students]);
+
+  const averageClassProgress = useMemo(() => {
+    if (registeredGroups.length === 0) return 0;
+    const sum = registeredGroups.reduce((acc, g) => acc + Number(g.tien_do_tong || 0), 0);
+    return Math.round(sum / registeredGroups.length);
+  }, [registeredGroups]);
+
+  const filteredLecturerTopics = useMemo(() => {
+    const keyword = lecturerSearch.trim().toLowerCase();
+    return topics.filter(t => {
+      if (lecturerFilter === 'active' && !t.da_dang_ky) return false;
+      if (lecturerFilter === 'open' && t.da_dang_ky) return false;
+      if (!keyword) return true;
+      const inTitle = (t.ten_do_an || '').toLowerCase().includes(keyword);
+      const inTeam = (t.team?.ten_nhom || '').toLowerCase().includes(keyword);
+      const inMembers = (t.team?.members || []).some(m => (m.ho_ten || '').toLowerCase().includes(keyword));
+      return inTitle || inTeam || inMembers;
+    });
+  }, [topics, lecturerFilter, lecturerSearch]);
+
+  const filteredUnassignedStudents = useMemo(() => {
+    const keyword = lecturerSearch.trim().toLowerCase();
+    if (!keyword) return unassignedStudents;
+    return unassignedStudents.filter(s =>
+      (s.ho_ten || '').toLowerCase().includes(keyword) ||
+      (s.email || '').toLowerCase().includes(keyword)
+    );
+  }, [unassignedStudents, lecturerSearch]);
 
   // Thông tin lớp hiện tại
   const currentClassInfo = useMemo(() => {
@@ -368,294 +401,363 @@ export default function ClassroomPortalView() {
   };
 
   return (
-    <div className="classroom-portal-container" style={{ display: 'flex', flexDirection: 'column', gap: '22px', paddingBottom: '36px' }}>
+    <div className="classroom-portal-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '36px' }}>
 
       {/* =====================================================================
-          1. HEADER BANNER TINH GỌN (CHUẨN TASTESKILL V2 / LINEAR NỀN SÁNG)
+          1. HEADER BANNER (GVPTMH: TỐI GIẢN HỌC THUẬT · SV: THÂN THIỆN)
          ===================================================================== */}
       <div
         data-tour-id="tour-class-selector"
         style={{
           background: 'var(--surface-raised)',
           border: '1px solid var(--border)',
-          borderTop: '3px solid #2563eb',
+          borderTop: isLecturer ? '1px solid var(--border)' : '3px solid #2563eb',
           borderRadius: '12px',
-          padding: '16px 22px',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '14px'
+          padding: isLecturer ? '16px 20px' : '16px 22px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-          {chibiMode && (
-            <img
-              src={isLecturer ? CHIBI_ASSETS.characters.gvReview : (hasEnrolledProject ? CHIBI_ASSETS.characters.coding : CHIBI_ASSETS.characters.chiaTask)}
-              alt="Portal Mascot"
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+            {!isLecturer && chibiMode && (
+              <img
+                src={hasEnrolledProject ? CHIBI_ASSETS.characters.coding : CHIBI_ASSETS.characters.chiaTask}
+                alt="Portal Mascot"
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  objectFit: 'contain',
+                  background: '#eff6ff',
+                  borderRadius: '10px',
+                  padding: '4px',
+                  border: '1px solid #bfdbfe',
+                  flexShrink: 0
+                }}
+              />
+            )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {!isLecturer && (
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
+                    SINH VIÊN
+                  </span>
+                )}
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+                  {currentClassInfo.ten_lop}
+                </h2>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  &bull; {currentClassInfo.ten_mon_hoc} &bull; {currentClassInfo.hoc_ky}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-subtle)', marginTop: '3px' }}>
+                GVHD: <strong style={{ color: 'var(--text)' }}>ThS. Bùi Phú Khuyên</strong> &bull; Sĩ số: <strong style={{ color: 'var(--text)' }}>{students.length} SV</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Chọn Lớp & Tác vụ cấp lớp cho Giảng viên */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <select
+              value={activeClassId}
+              onChange={e => setActiveClassId(e.target.value)}
               style={{
-                width: '48px',
-                height: '48px',
-                objectFit: 'contain',
-                background: '#eff6ff',
-                borderRadius: '10px',
-                padding: '4px',
-                border: '1px solid #bfdbfe',
-                flexShrink: 0
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
-            />
-          )}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
-                {isLecturer ? 'GVPTMH' : 'SINH VIÊN'}
-              </span>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.2px' }}>
-                {currentClassInfo.ten_lop}
-              </h2>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                &bull; {currentClassInfo.ten_mon_hoc} &bull; {currentClassInfo.hoc_ky}
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-subtle)', marginTop: '3px' }}>
-              GVHD: <strong style={{ color: 'var(--text)' }}>ThS. Bùi Phú Khuyên</strong> &bull; Sĩ số: <strong style={{ color: 'var(--text)' }}>{students.length} SV</strong>
-            </div>
+            >
+              {classes.map(c => (
+                <option key={c.ma_lop} value={c.ma_lop}>
+                  {c.ten_lop} ({c.hoc_ky})
+                </option>
+              ))}
+            </select>
+
+            {isLecturer && (
+              <>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setIsCreateClassModalOpen(true)}
+                  style={{ fontWeight: 600 }}
+                >
+                  + Tạo Lớp
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  data-tour-id="tour-gv-add-topics"
+                  onClick={() => setIsCreateTopicModalOpen(true)}
+                  style={{ fontWeight: 700 }}
+                >
+                  + Thêm Đề tài
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Chọn Lớp môn học & Tạo Lớp mới */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <select
-            value={activeClassId}
-            onChange={e => setActiveClassId(e.target.value)}
+        {/* 1 DÒNG TÓM TẮT SỐ LIỆU TOÀN LỚP (THAY THẾ 4 Ô KPI TO) */}
+        {isLecturer && (
+          <div
             style={{
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              padding: '6px 10px',
+              marginTop: '12px',
+              paddingTop: '10px',
+              borderTop: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
               fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer'
+              color: 'var(--text-muted)'
             }}
           >
-            {classes.map(c => (
-              <option key={c.ma_lop} value={c.ma_lop}>
-                {c.ten_lop} ({c.hoc_ky})
-              </option>
-            ))}
-          </select>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+              <span>Tổng đề tài: <strong style={{ color: 'var(--text)' }}>{topics.length}</strong></span>
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <span>Đang thực hiện: <strong style={{ color: '#15803d' }}>{registeredGroups.length}</strong></span>
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <span>Còn trống: <strong style={{ color: 'var(--text)' }}>{openTopics.length}</strong></span>
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <span>Tiến độ TB lớp: <strong style={{ color: '#1d4ed8' }}>{averageClassProgress}%</strong></span>
+            </div>
 
-          {isLecturer && (
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={() => setIsCreateClassModalOpen(true)}
-              style={{ color: '#2563eb', borderColor: '#93c5fd', background: '#eff6ff', fontWeight: 700 }}
-            >
-              + Tạo Lớp
-            </button>
-          )}
-        </div>
+            {unassignedStudents.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setLecturerFilter('unassigned_sv')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#b45309',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                {unassignedStudents.length}/{students.length} SV chưa có nhóm
+              </button>
+            ) : (
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#15803d' }}>
+                100% SV đã có nhóm
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* =====================================================================
-          2. NỘI DUNG CHÍNH: TỐI GIẢN & DỄ QUÉT CHO CẢ GV VÀ SV
+          2. NỘI DUNG CHÍNH
          ===================================================================== */}
 
       {isLecturer ? (
         /* -------------------------------------------------------------------
-           A. GIAO DIỆN GIẢNG VIÊN: 1 HÀNG KPI GỌN + 3 TAB BẢNG TỔNG QUAN
+           A. GIAO DIỆN GIẢNG VIÊN: 1 BẢNG TỔNG HỢP LỚP DUY NHẤT (SIÊU TỐI GIẢN)
            ------------------------------------------------------------------- */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* 1 hàng 4 KPI tóm tắt siêu gọn */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', gap: '12px' }}>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>Tổng đề tài</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#1d4ed8' }}>{topics.length}</div>
-              </div>
-              <span style={{ fontSize: '20px' }}>📚</span>
-            </div>
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>Nhóm đang làm</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d' }}>{registeredGroups.length}</div>
-              </div>
-              <span style={{ fontSize: '20px' }}>👥</span>
-            </div>
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>Còn trống</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#b45309' }}>{openTopics.length}</div>
-              </div>
-              <span style={{ fontSize: '20px' }}>🟢</span>
-            </div>
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>SV đã có nhóm</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#6d28d9' }}>
-                  {students.filter(s => s.da_co_nhom).length}/{students.length}
-                </div>
-              </div>
-              <span style={{ fontSize: '20px' }}>🎓</span>
-            </div>
-          </div>
-
-          {/* Thanh 3 Tab gọn của Giảng viên */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', background: 'var(--surface)', padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+          {/* Thanh lọc nhanh + tìm kiếm gọn trên đầu bảng */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              padding: '10px 14px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--surface-subtle)'
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
-                className={`tab-btn ${lecturerSubTab === 'groups' ? 'active' : ''}`}
+                className={`tab-btn ${lecturerFilter === 'all' ? 'active' : ''}`}
                 data-tour-id="tour-gv-groups-tab"
-                onClick={() => setLecturerSubTab('groups')}
-                style={{ padding: '6px 12px', fontSize: '12.5px', fontWeight: 700 }}
+                onClick={() => setLecturerFilter('all')}
+                style={{ padding: '5px 11px', fontSize: '12px', fontWeight: 600 }}
               >
-                👥 1. Tổng quan Nhóm ({registeredGroups.length})
+                Tất cả ({topics.length})
               </button>
               <button
-                className={`tab-btn ${lecturerSubTab === 'topics' ? 'active' : ''}`}
-                onClick={() => setLecturerSubTab('topics')}
-                style={{ padding: '6px 12px', fontSize: '12.5px', fontWeight: 700 }}
+                className={`tab-btn ${lecturerFilter === 'active' ? 'active' : ''}`}
+                onClick={() => setLecturerFilter('active')}
+                style={{ padding: '5px 11px', fontSize: '12px', fontWeight: 600 }}
               >
-                📚 2. Ngân hàng Đề tài ({topics.length})
+                Đang làm ({registeredGroups.length})
               </button>
               <button
-                className={`tab-btn ${lecturerSubTab === 'roster' ? 'active' : ''}`}
-                onClick={() => setLecturerSubTab('roster')}
-                style={{ padding: '6px 12px', fontSize: '12.5px', fontWeight: 700 }}
+                className={`tab-btn ${lecturerFilter === 'open' ? 'active' : ''}`}
+                onClick={() => setLecturerFilter('open')}
+                style={{ padding: '5px 11px', fontSize: '12px', fontWeight: 600 }}
               >
-                🎓 3. Sinh viên Lớp ({students.length})
+                Còn trống ({openTopics.length})
+              </button>
+              <button
+                className={`tab-btn ${lecturerFilter === 'unassigned_sv' ? 'active' : ''}`}
+                onClick={() => setLecturerFilter('unassigned_sv')}
+                style={{ padding: '5px 11px', fontSize: '12px', fontWeight: 600 }}
+              >
+                SV chưa nhóm ({unassignedStudents.length})
               </button>
             </div>
 
-            <button
-              className="btn btn-primary btn-sm"
-              data-tour-id="tour-gv-add-topics"
-              onClick={() => setIsCreateTopicModalOpen(true)}
-              style={{ fontWeight: 700, padding: '6px 12px' }}
-            >
-              <span>+ Thêm Đề tài</span>
-            </button>
+            <input
+              type="text"
+              className="form-control"
+              placeholder={lecturerFilter === 'unassigned_sv' ? 'Tìm tên hoặc email SV...' : 'Tìm đề tài, nhóm, trưởng nhóm...'}
+              value={lecturerSearch}
+              onChange={e => setLecturerSearch(e.target.value)}
+              style={{ width: '240px', maxWidth: '100%', padding: '5px 10px', fontSize: '12.5px' }}
+            />
           </div>
 
-          {/* TAB 1 (Mặc định): BẢNG TỔNG QUAN TIẾN ĐỘ CÁC NHÓM — NHÌN 1 PHÁT THẤY HẾT */}
-          {lecturerSubTab === 'groups' && (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto' }}>
+            {lecturerFilter === 'unassigned_sv' ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '11px 14px' }}>Nhóm / Cá nhân</th>
-                    <th style={{ padding: '11px 14px' }}>Đề tài đồ án</th>
-                    <th style={{ padding: '11px 14px' }}>Thành viên</th>
-                    <th style={{ padding: '11px 14px', width: '140px' }}>Tiến độ</th>
-                    <th style={{ padding: '11px 14px' }}>GitHub</th>
-                    <th style={{ padding: '11px 14px', textAlign: 'right' }}>Thao tác</th>
+                  <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '10px 14px', width: '48px' }}>#</th>
+                    <th style={{ padding: '10px 14px' }}>Họ và tên</th>
+                    <th style={{ padding: '10px 14px' }}>Email</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right' }}>Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {registeredGroups.length === 0 ? (
+                  {filteredUnassignedStudents.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-subtle)' }}>
-                        Chưa có nhóm nào đăng ký đề tài trong lớp này.
+                      <td colSpan="4" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-subtle)' }}>
+                        {unassignedStudents.length === 0
+                          ? 'Tất cả sinh viên trong lớp đều đã tham gia nhóm.'
+                          : 'Không tìm thấy sinh viên phù hợp.'}
                       </td>
                     </tr>
                   ) : (
-                    registeredGroups.map(group => {
-                      const pct = Number(group.tien_do_tong || 0).toFixed(0);
-                      const gh = group.github_summary;
+                    filteredUnassignedStudents.map((sv, idx) => (
+                      <tr key={sv.ma_nguoi_dung} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-subtle)' }}>{idx + 1}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--text)' }}>{sv.ho_ten}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{sv.email}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', color: '#b45309', fontSize: '12px', fontWeight: 600 }}>
+                          Chưa có nhóm
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '10px 14px' }}>Đề tài &amp; Nhóm</th>
+                    <th style={{ padding: '10px 14px', width: '210px' }}>Trưởng nhóm &amp; Sĩ số</th>
+                    <th style={{ padding: '10px 14px', width: '140px' }}>Tiến độ</th>
+                    <th style={{ padding: '10px 14px', width: '120px' }}>GitHub</th>
+                    <th style={{ padding: '10px 14px', width: '84px', textAlign: 'right' }}>Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLecturerTopics.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-subtle)' }}>
+                        Không có đề tài phù hợp với bộ lọc hiện tại.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLecturerTopics.map((topic, idx) => {
+                      const pct = Number(topic.tien_do_tong || 0).toFixed(0);
+                      const gh = topic.github_summary;
+                      const members = topic.team?.members || [];
+                      const leader = members.find(m => m.vai_tro_trong_nhom === 'nhom_truong') || members[0];
                       return (
-                        <tr key={group.ma_do_an} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>
-                            <div>{group.team?.ten_nhom}</div>
-                            <span style={{ fontSize: '11px', fontWeight: 600, color: group.quy_mo === 'ca_nhan' ? '#0369a1' : '#6d28d9' }}>
-                              {group.quy_mo === 'ca_nhan' ? 'Cá nhân' : 'Nhóm'} ({group.team?.members?.length || 1} SV)
-                            </span>
-                          </td>
-
-                          <td style={{ padding: '12px 14px', maxWidth: '280px' }}>
-                            <div style={{ fontWeight: 600, color: 'var(--text)', lineHeight: 1.35 }}>{group.ten_do_an}</div>
-                          </td>
-
-                          <td style={{ padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                              {group.team?.members?.map(m => (
-                                <span
-                                  key={m.ma_nguoi_dung}
-                                  style={{
-                                    fontSize: '11.5px',
-                                    padding: '2px 7px',
-                                    borderRadius: '6px',
-                                    background: m.vai_tro_trong_nhom === 'nhom_truong' ? '#fef3c7' : 'var(--surface-subtle)',
-                                    color: m.vai_tro_trong_nhom === 'nhom_truong' ? '#92400e' : 'var(--text)',
-                                    border: '1px solid var(--border)',
-                                    fontWeight: 600
-                                  }}
-                                >
-                                  {m.ho_ten}{m.vai_tro_trong_nhom === 'nhom_truong' ? ' ⭐' : ''}
-                                </span>
-                              ))}
+                        <tr
+                          key={topic.ma_do_an}
+                          onClick={() => setDetailTopicModal(topic)}
+                          style={{ borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                        >
+                          <td style={{ padding: '11px 14px', maxWidth: '420px' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text)', lineHeight: 1.35 }}>
+                              <span style={{ color: 'var(--text-subtle)', marginRight: '6px', fontWeight: 500 }}>{idx + 1}.</span>
+                              {topic.ten_do_an}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              {topic.da_dang_ky
+                                ? `${topic.team?.ten_nhom} · ${topic.quy_mo === 'ca_nhan' ? 'Cá nhân' : 'Nhóm'}`
+                                : `Chưa có nhóm · ${topic.quy_mo === 'ca_nhan' ? 'Cá nhân (1 SV)' : 'Nhóm'}`}
                             </div>
                           </td>
 
-                          <td style={{ padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#15803d', marginBottom: '4px' }}>
-                              <span>{pct}%</span>
-                              <span style={{ fontSize: '10.5px', color: 'var(--text-subtle)', fontWeight: 500 }}>{group.so_cong_viec || 0} việc</span>
-                            </div>
-                            <div style={{ height: '6px', background: '#e4e4e7', borderRadius: '99px', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: '#16a34a' }} />
-                            </div>
-                          </td>
-
-                          <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                            {gh?.connected ? (
-                              <button
-                                className="btn btn-outline btn-sm"
-                                onClick={() => enterWorkspace(group.ma_do_an, 'github')}
-                                style={{ fontSize: '11.5px', padding: '4px 8px', fontWeight: 600 }}
-                                title={`Mở GitHub Dashboard của ${gh.repo_slug}`}
-                              >
-                                🐙 {gh.commit_count > 0 ? `${gh.commit_count} commits` : 'Đã gắn'}
-                              </button>
+                          <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: '12.5px' }}>
+                            {topic.da_dang_ky && leader ? (
+                              <span>
+                                {leader.ho_ten}{' '}
+                                <span style={{ color: 'var(--text-muted)' }}>({members.length} SV)</span>
+                              </span>
                             ) : (
-                              <button
-                                className="btn btn-outline btn-sm"
-                                onClick={() => enterWorkspace(group.ma_do_an, 'github')}
-                                style={{ fontSize: '11px', padding: '4px 8px', color: 'var(--text-subtle)' }}
-                              >
-                                + Gắn Repo
-                              </button>
+                              <span style={{ color: 'var(--text-subtle)' }}>—</span>
                             )}
                           </td>
 
-                          <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <td style={{ padding: '11px 14px' }}>
+                            {topic.da_dang_ky ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, height: '5px', background: '#e4e4e7', borderRadius: '99px', overflow: 'hidden', minWidth: '64px' }}>
+                                  <div style={{ height: '100%', width: `${pct}%`, background: '#16a34a' }} />
+                                </div>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', minWidth: '32px', textAlign: 'right' }}>
+                                  {pct}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Còn trống</span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+                            {topic.da_dang_ky ? (
                               <button
-                                className="btn btn-primary btn-sm"
-                                onClick={() => enterWorkspace(group.ma_do_an, 'kanban')}
-                                style={{ background: '#2563eb', fontWeight: 700 }}
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  enterWorkspace(topic.ma_do_an, 'github');
+                                }}
+                                style={{ fontSize: '11.5px', padding: '3px 8px', color: gh?.connected ? 'var(--text)' : 'var(--text-subtle)' }}
                               >
-                                Vào Kanban &rarr;
+                                {gh?.connected
+                                  ? (gh.commit_count > 0 ? `${gh.commit_count} commits` : 'Đã gắn')
+                                  : 'Chưa gắn'}
                               </button>
-                              {group.ma_do_an !== 'da-dacs-01' && (
-                                <button
-                                  className="btn btn-outline btn-sm"
-                                  onClick={() => {
-                                    if (window.confirm('Đặt lại đề tài này về trạng thái trống?')) {
-                                      resetTopicRegistration(group.ma_do_an);
-                                    }
-                                  }}
-                                  style={{ color: '#dc2626', borderColor: '#fecaca' }}
-                                >
-                                  Đặt lại
-                                </button>
-                              )}
-                            </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-subtle)' }}>—</span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '11px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailTopicModal(topic);
+                              }}
+                              style={{ fontSize: '11.5px', padding: '4px 10px', fontWeight: 600 }}
+                            >
+                              Xem
+                            </button>
                           </td>
                         </tr>
                       );
@@ -663,150 +765,8 @@ export default function ClassroomPortalView() {
                   )}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {/* TAB 2: NGÂN HÀNG ĐỀ TÀI DẠNG BẢNG GỌN */}
-          {lecturerSubTab === 'topics' && (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '11px 14px', width: '48px' }}>#</th>
-                    <th style={{ padding: '11px 14px' }}>Tên đề tài</th>
-                    <th style={{ padding: '11px 14px', width: '140px' }}>Quy mô</th>
-                    <th style={{ padding: '11px 14px', width: '190px' }}>Trạng thái</th>
-                    <th style={{ padding: '11px 14px', textAlign: 'right', width: '190px' }}>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topics.map((topic, idx) => (
-                    <tr key={topic.ma_do_an} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '11px 14px', color: 'var(--text-subtle)', fontWeight: 600 }}>{idx + 1}</td>
-                      <td style={{ padding: '11px 14px', fontWeight: 600, color: 'var(--text)' }}>{topic.ten_do_an}</td>
-                      <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: '999px',
-                            background: topic.quy_mo === 'ca_nhan' ? '#e0f2fe' : '#f3e8ff',
-                            color: topic.quy_mo === 'ca_nhan' ? '#0369a1' : '#6d28d9'
-                          }}
-                        >
-                          {topic.quy_mo === 'ca_nhan' ? 'Cá nhân (1 SV)' : 'Nhóm (2-3 SV)'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        {topic.da_dang_ky ? (
-                          <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
-                            ✓ {topic.team?.ten_nhom} ({Number(topic.tien_do_tong || 0).toFixed(0)}%)
-                          </span>
-                        ) : (
-                          <span style={{ background: '#fef3c7', color: '#b45309', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
-                            🟢 Chờ SV chọn
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '11px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => setDetailTopicModal(topic)}
-                            style={{ fontSize: '11.5px' }}
-                          >
-                            Chi tiết
-                          </button>
-                          {topic.da_dang_ky && (
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => enterWorkspace(topic.ma_do_an, 'kanban')}
-                              style={{ fontSize: '11.5px', background: '#2563eb' }}
-                            >
-                              Kanban &rarr;
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* TAB 3: DANH SÁCH SINH VIÊN LỚP + LỌC NHANH */}
-          {lecturerSubTab === 'roster' && (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700 }}>Sĩ số Sinh viên — {currentClassInfo.ten_lop}</h4>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    className={`tab-btn ${rosterFilter === 'all' ? 'active' : ''}`}
-                    onClick={() => setRosterFilter('all')}
-                    style={{ fontSize: '12px', padding: '4px 10px' }}
-                  >
-                    Tất cả ({students.length})
-                  </button>
-                  <button
-                    className={`tab-btn ${rosterFilter === 'unassigned' ? 'active' : ''}`}
-                    onClick={() => setRosterFilter('unassigned')}
-                    style={{ fontSize: '12px', padding: '4px 10px' }}
-                  >
-                    Chưa có nhóm ({students.filter(s => !s.da_co_nhom).length})
-                  </button>
-                </div>
-              </div>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11.5px' }}>
-                    <th style={{ padding: '8px' }}>Họ tên</th>
-                    <th style={{ padding: '8px' }}>Email</th>
-                    <th style={{ padding: '8px' }}>Nhóm hiện tại</th>
-                    <th style={{ padding: '8px' }}>Đề tài</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students
-                    .filter(s => rosterFilter === 'all' || !s.da_co_nhom)
-                    .map(s => {
-                      const m = s.danh_sach_nhom?.[0];
-                      return (
-                        <tr key={s.ma_nguoi_dung} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td style={{ padding: '9px 8px', fontWeight: 600 }}>{s.ho_ten}</td>
-                          <td style={{ padding: '9px 8px', color: 'var(--text-muted)' }}>{s.email}</td>
-                          <td style={{ padding: '9px 8px' }}>
-                            {m ? (
-                              <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 700 }}>
-                                {m.ten_nhom}
-                              </span>
-                            ) : (
-                              <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
-                                Chưa có nhóm
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '9px 8px' }}>
-                            {m ? (
-                              <span
-                                onClick={() => enterWorkspace(m.ma_do_an, 'kanban')}
-                                style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
-                              >
-                                {m.ten_do_an}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-subtle)' }}>—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       ) : (
         /* -------------------------------------------------------------------
@@ -1568,23 +1528,28 @@ export default function ClassroomPortalView() {
       )}
 
       {/* =====================================================================
-          MODAL E: XEM CHI TIẾT ĐỀ TÀI (GIÚP THẺ BÊN NGOÀI GỌN GÀNG, KHÔNG RỐI)
+          MODAL E: XEM CHI TIẾT ĐỀ TÀI & NHÓM (BẢNG BÊN NGOÀI LUÔN GỌN SẠCH)
          ===================================================================== */}
       {detailTopicModal && (
         <div className="modal-backdrop open" onClick={() => setDetailTopicModal(null)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px' }}>
             <div className="modal-header">
-              <h3>📄 Chi tiết Đề tài Đồ án</h3>
+              <h3>📄 Chi tiết Đề tài &amp; Nhóm thực hiện</h3>
               <button className="drawer-close-btn" onClick={() => setDetailTopicModal(null)}>✕</button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: detailTopicModal.quy_mo === 'ca_nhan' ? '#e0f2fe' : '#f3e8ff', color: detailTopicModal.quy_mo === 'ca_nhan' ? '#0369a1' : '#6d28d9' }}>
-                  {detailTopicModal.quy_mo === 'ca_nhan' ? 'Đề tài Cá nhân (1 SV)' : 'Đề tài Nhóm (2-3 SV)'}
+                  {detailTopicModal.quy_mo === 'ca_nhan' ? 'Đề tài Cá nhân (1 SV)' : 'Đề tài Nhóm'}
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: detailTopicModal.da_dang_ky ? '#dcfce7' : '#fef3c7', color: detailTopicModal.da_dang_ky ? '#15803d' : '#b45309' }}>
                   {detailTopicModal.da_dang_ky ? `Đã nhận (${detailTopicModal.team?.ten_nhom})` : 'Còn trống'}
                 </span>
+                {detailTopicModal.github_summary?.connected && (
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: '#f4f4f5', color: 'var(--text)' }}>
+                    GitHub: {detailTopicModal.github_summary.repo_slug}
+                  </span>
+                )}
               </div>
 
               <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text)', lineHeight: 1.4 }}>
@@ -1595,31 +1560,82 @@ export default function ClassroomPortalView() {
                 {detailTopicModal.mo_ta_sach || 'Chưa có mô tả chi tiết cho đề tài này.'}
               </div>
 
-              <div style={{ fontSize: '12px', color: 'var(--text-subtle)', display: 'flex', gap: '14px' }}>
-                <span>🚩 {detailTopicModal.so_moc || 0} mốc tiến độ</span>
-                <span>📋 {detailTopicModal.so_cong_viec || 0} công việc</span>
+              {detailTopicModal.da_dang_ky && (detailTopicModal.team?.members?.length || 0) > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', marginBottom: '6px' }}>
+                    Thành viên ({detailTopicModal.team.members.length} sinh viên):
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {detailTopicModal.team.members.map(m => (
+                      <div key={m.ma_nguoi_dung} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                        <span style={{ color: 'var(--text)', fontWeight: m.vai_tro_trong_nhom === 'nhom_truong' ? 700 : 500 }}>
+                          {m.ho_ten}{m.vai_tro_trong_nhom === 'nhom_truong' ? ' (Nhóm trưởng)' : ''}
+                        </span>
+                        <span>{m.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: '12px', color: 'var(--text-subtle)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                <span>Mốc tiến độ: <strong>{detailTopicModal.so_moc || 0}</strong></span>
+                <span>Công việc: <strong>{detailTopicModal.so_cong_viec || 0}</strong></span>
                 {detailTopicModal.da_dang_ky && (
-                  <span>📈 Tiến độ: <strong>{Number(detailTopicModal.tien_do_tong || 0).toFixed(0)}%</strong></span>
+                  <span>Tiến độ: <strong>{Number(detailTopicModal.tien_do_tong || 0).toFixed(0)}%</strong></span>
                 )}
               </div>
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-outline" onClick={() => setDetailTopicModal(null)}>
-                Đóng
-              </button>
-              {detailTopicModal.da_dang_ky && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    const targetId = detailTopicModal.ma_do_an;
-                    setDetailTopicModal(null);
-                    enterWorkspace(targetId, 'kanban');
-                  }}
-                >
-                  🚀 Vào Kanban &rarr;
+            <div className="modal-footer" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                {isLecturer && detailTopicModal.da_dang_ky && detailTopicModal.ma_do_an !== 'da-dacs-01' && (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      if (window.confirm('Đặt lại đề tài này về trạng thái trống?')) {
+                        const targetId = detailTopicModal.ma_do_an;
+                        setDetailTopicModal(null);
+                        resetTopicRegistration(targetId);
+                      }
+                    }}
+                    style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                  >
+                    Đặt lại về trống
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" className="btn btn-outline" onClick={() => setDetailTopicModal(null)}>
+                  Đóng
                 </button>
-              )}
+                {detailTopicModal.da_dang_ky && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => {
+                        const targetId = detailTopicModal.ma_do_an;
+                        setDetailTopicModal(null);
+                        enterWorkspace(targetId, 'github');
+                      }}
+                    >
+                      GitHub
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const targetId = detailTopicModal.ma_do_an;
+                        setDetailTopicModal(null);
+                        enterWorkspace(targetId, 'kanban');
+                      }}
+                    >
+                      Mở Kanban &rarr;
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
