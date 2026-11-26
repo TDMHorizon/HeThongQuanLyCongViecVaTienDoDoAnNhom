@@ -50,6 +50,9 @@ export const apiService = {
     method: 'POST',
     body: JSON.stringify(data)
   }),
+  deleteTopic: (topicId) => request(`/topics/${encodeURIComponent(topicId)}`, {
+    method: 'DELETE'
+  }),
   registerSoloTopic: (topicId, userId) => request(`/topics/${encodeURIComponent(topicId)}/register-solo`, {
     method: 'POST',
     body: JSON.stringify({ userId })

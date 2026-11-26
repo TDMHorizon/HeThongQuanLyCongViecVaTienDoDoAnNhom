@@ -1,7 +1,55 @@
 import React, { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useProject } from '../context/ProjectContext.jsx';
 import { getInitials } from '../utils/formatters.js';
 import { CHIBI_ASSETS } from '../constants/chibiAssets.js';
+
+// Helper tính toán quy mô đề tài tự động nâng/hạ linh hoạt theo số lượng thành viên thực tế hoặc hạn mức tối đa
+export function getTopicScaleInfo(topic) {
+  if (!topic) return { label: 'Đề tài', isSolo: false, count: 1, color: '#6d28d9', bg: '#f3e8ff' };
+
+  // 1. Nếu đề tài ĐÃ CÓ NHÓM ĐĂNG KÝ: Tự động nâng/hạ quy mô theo số lượng thành viên thực tế của nhóm
+  if (topic.da_dang_ky && topic.team) {
+    const members = Array.isArray(topic.team.members) ? topic.team.members : [];
+    const count = members.length || 1;
+    if (count === 1) {
+      return {
+        label: 'Cá nhân (1 SV)',
+        isSolo: true,
+        count: 1,
+        color: '#0369a1',
+        bg: '#e0f2fe'
+      };
+    }
+    return {
+      label: `Nhóm (${count} SV)`,
+      isSolo: false,
+      count,
+      color: '#6d28d9',
+      bg: '#f3e8ff'
+    };
+  }
+
+  // 2. Nếu đề tài CHƯA CÓ NHÓM (Còn trống): Hiển thị hạn mức linh hoạt theo cấu hình Giảng viên đã đặt
+  const max = Number(topic.so_luong_toi_da) || 3;
+  if (max === 1 || topic.quy_mo === 'ca_nhan') {
+    return {
+      label: 'Cá nhân (1 SV)',
+      isSolo: true,
+      count: 1,
+      color: '#0369a1',
+      bg: '#e0f2fe'
+    };
+  }
+
+  return {
+    label: `Nhóm (1-${max} SV)`,
+    isSolo: false,
+    count: max,
+    color: '#6d28d9',
+    bg: '#f3e8ff'
+  };
+}
 
 export default function ClassroomPortalView() {
   const {
@@ -19,6 +67,7 @@ export default function ClassroomPortalView() {
     chibiMode,
     enterWorkspace,
     createTopic,
+    deleteTopic,
     registerSoloTopic,
     registerTeamTopic,
     resetTopicRegistration
@@ -46,14 +95,25 @@ export default function ClassroomPortalView() {
     mo_ta: ''
   });
 
-  // Chế độ nhập đề tài: 'rows' (Nhiều dòng linh hoạt) | 'bulk' (Dán danh sách nhanh từ Word/Excel)
+  // Chế độ nhập đề tài: 'rows' (Nhiều dòng linh hoạt) | 'bulk' (Dán danh sách nhanh) | 'excel' (Import từ Excel/CSV)
   const [topicInputMode, setTopicInputMode] = useState('rows');
 
   // Danh sách các dòng đề tài nhập cùng lúc (cho phép thêm nhiều đề tài cho 1 lớp)
   const [topicRows, setTopicRows] = useState([
-    { id: 1, ten_do_an: '', quy_mo: 'nhom', noi_dung_muc_tieu: '' },
-    { id: 2, ten_do_an: '', quy_mo: 'ca_nhan', noi_dung_muc_tieu: '' }
+    { id: 1, ten_do_an: '', so_luong_toi_da: 3, noi_dung_muc_tieu: '' },
+    { id: 2, ten_do_an: '', so_luong_toi_da: 1, noi_dung_muc_tieu: '' }
   ]);
+
+  // Task B4: State quản lý file Excel / CSV tải lên và ánh xạ cột
+  const [excelFile, setExcelFile] = useState(null);
+  const [excelHeaders, setExcelHeaders] = useState([]);
+  const [excelRows, setExcelRows] = useState([]);
+  const [excelMapping, setExcelMapping] = useState({
+    topicCol: '',
+    descCol: '__NONE__',
+    maxMembers: 3
+  });
+  const [excelError, setExcelError] = useState('');
 
   // Văn bản dán nhanh hàng loạt
   const [bulkText, setBulkText] = useState('');
@@ -81,6 +141,43 @@ export default function ClassroomPortalView() {
   const students = useMemo(() => {
     return users.filter(u => u.vai_tro_he_thong === 'sinhvien');
   }, [users]);
+
+  // Task B3 & UI Lock: Map xác định toàn diện các sinh viên đã có nhóm hoặc đã nhận đề tài
+  const assignedStudentMap = useMemo(() => {
+    const map = {};
+    // 1. Quét từ topics (nguồn trạng thái tức thời của các nhóm đã đăng ký đề tài)
+    topics.forEach(t => {
+      if (t.da_dang_ky && t.team) {
+        const teamName = t.team.ten_nhom || 'Đã có nhóm';
+        const members = Array.isArray(t.team.members) ? t.team.members : [];
+        members.forEach(m => {
+          const mId = m.ma_nguoi_dung || m.ma_sinh_vien || m.id;
+          if (mId) {
+            map[mId] = {
+              ten_nhom: teamName,
+              ten_do_an: t.ten_do_an || '',
+              vai_tro: m.vai_tro || 'Thành viên'
+            };
+          }
+        });
+      }
+    });
+
+    // 2. Quét bổ sung từ users.danh_sach_nhom (từ backend)
+    users.forEach(u => {
+      if (Array.isArray(u.danh_sach_nhom) && u.danh_sach_nhom.length > 0) {
+        if (!map[u.ma_nguoi_dung]) {
+          map[u.ma_nguoi_dung] = {
+            ten_nhom: u.danh_sach_nhom[0].ten_nhom || 'Đã có nhóm',
+            ten_do_an: u.danh_sach_nhom[0].ten_do_an || '',
+            vai_tro: u.danh_sach_nhom[0].vai_tro || 'Thành viên'
+          };
+        }
+      }
+    });
+
+    return map;
+  }, [topics, users]);
 
   // Các nhóm đã hình thành trong lớp
   const registeredGroups = useMemo(() => {
@@ -139,6 +236,33 @@ export default function ClassroomPortalView() {
   // Sinh viên hiện tại đã có nhóm hay chưa
   const hasEnrolledProject = Boolean(studentProject);
 
+  // Sinh viên thực hiện khi nhận đề tài cá nhân (tự động nhận diện tài khoản đang thao tác, không cần chọn thủ công)
+  const currentAssignedStudent = useMemo(() => {
+    if (!isLecturer && currentUser) return currentUser;
+    return students.find(s => s.ma_nguoi_dung === soloStudentId) || students.find(s => !assignedStudentMap[s.ma_nguoi_dung]) || students[0] || null;
+  }, [currentUser, isLecturer, students, soloStudentId, assignedStudentMap]);
+
+  // Thao tác Xóa đề tài khỏi Ngân hàng đề tài (GVPTMH)
+  const handleDeleteTopic = async (topic) => {
+    if (!topic || !topic.ma_do_an) return;
+    const isRegistered = topic.da_dang_ky;
+    const confirmMsg = isRegistered
+      ? `Đề tài "${topic.ten_do_an}" ĐÃ CÓ NHÓM ĐĂNG KÝ (${topic.team?.ten_nhom || 'Nhóm SV'}). Xóa đề tài này sẽ hủy liên kết nhóm và toàn bộ công việc liên quan. Bạn có chắc chắn muốn xóa?`
+      : `Bạn có chắc chắn muốn xóa đề tài "${topic.ten_do_an}" khỏi Ngân hàng Đề tài?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setSubmitting(true);
+      await deleteTopic(topic.ma_do_an);
+      alert(`Đã xóa thành công đề tài "${topic.ten_do_an}"!`);
+    } catch (err) {
+      alert(`Lỗi khi xóa đề tài: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Thao tác Tạo Lớp mới (GVPTMH)
   const handleCreateClassSubmit = async (e) => {
     e.preventDefault();
@@ -169,7 +293,7 @@ export default function ClassroomPortalView() {
       {
         id: Date.now() + Math.random(),
         ten_do_an: '',
-        quy_mo: prev.length % 2 === 0 ? 'nhom' : 'ca_nhan',
+        so_luong_toi_da: prev.length % 2 === 0 ? 3 : 1,
         noi_dung_muc_tieu: ''
       }
     ]);
@@ -186,35 +310,87 @@ export default function ClassroomPortalView() {
     setTopicRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
-  // Nạp 4 đề tài mẫu phong phú chuẩn CNPM cho lớp
+  // Nạp 4 đề tài mẫu phong phú chuẩn CNPM cho lớp (hỗ trợ số lượng thành viên linh hoạt)
   const handleLoadSampleTopics = () => {
     setTopicRows([
       {
         id: Date.now() + 1,
         ten_do_an: 'Xây dựng cổng tra cứu thông tin học vụ và lịch thi tích hợp AI Chatbot',
-        quy_mo: 'nhom',
+        so_luong_toi_da: 3,
         noi_dung_muc_tieu: 'Hệ thống web SPA hỗ trợ sinh viên tra cứu điểm thi, học phí và hỏi đáp quy chế học vụ qua AI.'
       },
       {
         id: Date.now() + 2,
         ten_do_an: 'Hệ thống quản lý điểm rèn luyện và hoạt động phong trào sinh viên',
-        quy_mo: 'nhom',
+        so_luong_toi_da: 5,
         noi_dung_muc_tieu: 'Nền tảng trực tuyến chấm điểm rèn luyện minh bạch, duyệt minh chứng tham gia phong trào Khoa CNTT.'
       },
       {
         id: Date.now() + 3,
         ten_do_an: 'Ứng dụng nhắc nhở thời khóa biểu và lộ trình chứng chỉ tốt nghiệp',
-        quy_mo: 'ca_nhan',
+        so_luong_toi_da: 1,
         noi_dung_muc_tieu: 'Module theo dõi tiến độ tích lũy chứng chỉ ngoại ngữ, tin học và cảnh báo học vụ cá nhân theo tuần.'
       },
       {
         id: Date.now() + 4,
-        ten_do_an: 'Nền tảng chia sẻ tài liệu ôn tập và ngân hàng câu hỏi trắc nghiệm',
-        quy_mo: 'ca_nhan',
+        ten_do_an: 'Nền tảng chia sẻ tài liệu ôn tập và ngân hàng câu hỏi trắc nghiệm mã nguồn mở',
+        so_luong_toi_da: 4,
         noi_dung_muc_tieu: 'Ứng dụng lưu trữ, tìm kiếm và phân quyền tải tài liệu học tập theo từng học phần.'
       }
     ]);
     setTopicInputMode('rows');
+  };
+
+  // Task B4: Đọc file Excel / CSV bằng thư viện xlsx
+  const handleExcelFileUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setExcelFile(file);
+    setExcelError('');
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) throw new Error('File không có trang tính (Sheet) nào!');
+        const sheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (!rawData || rawData.length === 0) throw new Error('File Excel không có dữ liệu!');
+
+        // Lấy hàng tiêu đề (bỏ qua hàng trống đầu tiên nếu có)
+        let headerRowIdx = 0;
+        while (headerRowIdx < rawData.length && (!rawData[headerRowIdx] || rawData[headerRowIdx].length === 0)) {
+          headerRowIdx++;
+        }
+        if (headerRowIdx >= rawData.length) throw new Error('Không tìm thấy dòng tiêu đề trong file!');
+
+        const headers = (rawData[headerRowIdx] || []).map(h => String(h || '').trim()).filter(Boolean);
+        if (headers.length === 0) throw new Error('Không trích xuất được tiêu đề cột!');
+
+        // Lấy các dòng dữ liệu sau dòng tiêu đề
+        const rows = rawData.slice(headerRowIdx + 1).filter(r => r && r.some(c => c !== undefined && c !== null && String(c).trim() !== ''));
+        if (rows.length === 0) throw new Error('File có tiêu đề nhưng không có dòng đề tài nào bên dưới!');
+
+        setExcelHeaders(headers);
+        setExcelRows(rows);
+
+        // Tự động nhận diện gợi ý cột Tên đề tài:
+        const topicCol = headers.find(h => /tên|đề tài|topic|tiêu đề|project|name/i.test(h)) || headers[0];
+        // Tự động nhận diện gợi ý cột Mô tả:
+        const descCol = headers.find(h => /mô tả|nội dung|desc|yêu cầu|ghi chú|detail/i.test(h)) || '__NONE__';
+
+        setExcelMapping({
+          topicCol,
+          descCol,
+          maxMembers: 3
+        });
+      } catch (err) {
+        setExcelError(err.message || 'Lỗi khi đọc file Excel/CSV!');
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   // Chuyển văn bản dán hàng loạt thành các dòng đề tài
@@ -236,14 +412,14 @@ export default function ClassroomPortalView() {
     }
 
     const newRows = lines.map((line, idx) => {
-      let scale = bulkDefaultScale;
+      let isSolo = bulkDefaultScale === 'ca_nhan';
       if (bulkDefaultScale === 'alternate') {
-        scale = idx % 2 === 0 ? 'nhom' : 'ca_nhan';
+        isSolo = idx % 2 !== 0;
       }
       return {
         id: Date.now() + idx,
         ten_do_an: line,
-        quy_mo: scale,
+        so_luong_toi_da: isSolo ? 1 : 3,
         noi_dung_muc_tieu: `Xây dựng giải pháp phần mềm cho đề tài "${line}", chuẩn hóa CSDL BCNF và báo cáo nghiệm thu.`
       };
     });
@@ -252,12 +428,38 @@ export default function ClassroomPortalView() {
     setTopicInputMode('rows');
   };
 
-  // Thao tác Tạo & Công bố Đề tài mới (GVPTMH - Hỗ trợ NHIỀU ĐỀ TÀI CÙNG LÚC)
+  // Thao tác Tạo & Công bố Đề tài mới (GVPTMH - Hỗ trợ cả Rows, Bulk Paste và Import Excel/CSV)
   const handleCreateTopicSubmit = async (e) => {
     e.preventDefault();
 
-    let rowsToSubmit = topicRows;
-    if (topicInputMode === 'bulk') {
+    let formattedTopics = [];
+
+    if (topicInputMode === 'excel') {
+      if (!excelFile || excelRows.length === 0) {
+        alert('Vui lòng chọn file Excel/CSV hợp lệ!');
+        return;
+      }
+      const topicColIdx = excelHeaders.indexOf(excelMapping.topicCol);
+      if (topicColIdx < 0) {
+        alert('Vui lòng chỉ định cột Tên đề tài!');
+        return;
+      }
+      const descColIdx = excelMapping.descCol === '__NONE__' ? -1 : excelHeaders.indexOf(excelMapping.descCol);
+
+      formattedTopics = excelRows.map((row) => {
+        const title = String(row[topicColIdx] || '').trim();
+        const desc = descColIdx >= 0 ? String(row[descColIdx] || '').trim() : '';
+        const max = Math.max(1, Number(excelMapping.maxMembers) || 3);
+        const isSolo = max === 1;
+        return {
+          ten_do_an: title,
+          noi_dung_muc_tieu: desc || undefined,
+          quy_mo: isSolo ? 'ca_nhan' : 'nhom',
+          so_luong_toi_da: max,
+          is_unlimited: false
+        };
+      }).filter(t => t.ten_do_an.length > 0);
+    } else if (topicInputMode === 'bulk') {
       if (!bulkText.trim()) {
         alert('Vui lòng dán danh sách đề tài hoặc chuyển sang tab Nhập theo danh sách!');
         return;
@@ -266,17 +468,38 @@ export default function ClassroomPortalView() {
         .split('\n')
         .map(l => l.trim().replace(/^(\d+[\.\/\)\-\:]|\-|\*|Đề tài \d+[\:\.\-]?)\s*/i, '').trim())
         .filter(l => l.length > 0);
-      rowsToSubmit = lines.map((line, idx) => ({
-        id: Date.now() + idx,
-        ten_do_an: line,
-        quy_mo: bulkDefaultScale === 'alternate' ? (idx % 2 === 0 ? 'nhom' : 'ca_nhan') : bulkDefaultScale,
-        noi_dung_muc_tieu: `Xây dựng giải pháp phần mềm cho đề tài "${line}".`
-      }));
+      formattedTopics = lines.map((line, idx) => {
+        let isSolo = bulkDefaultScale === 'ca_nhan';
+        if (bulkDefaultScale === 'alternate') {
+          isSolo = idx % 2 !== 0;
+        }
+        return {
+          ten_do_an: line,
+          quy_mo: isSolo ? 'ca_nhan' : 'nhom',
+          so_luong_toi_da: isSolo ? 1 : 3,
+          is_unlimited: false,
+          noi_dung_muc_tieu: `Xây dựng giải pháp phần mềm cho đề tài "${line}".`
+        };
+      });
+    } else {
+      // mode 'rows'
+      formattedTopics = topicRows
+        .filter(r => r.ten_do_an && r.ten_do_an.trim())
+        .map(r => {
+          const max = Math.max(1, Number(r.so_luong_toi_da) || 3);
+          const isSolo = max === 1;
+          return {
+            ten_do_an: r.ten_do_an.trim(),
+            quy_mo: isSolo ? 'ca_nhan' : 'nhom',
+            so_luong_toi_da: max,
+            is_unlimited: false,
+            noi_dung_muc_tieu: r.noi_dung_muc_tieu ? r.noi_dung_muc_tieu.trim() : undefined
+          };
+        });
     }
 
-    const validRows = rowsToSubmit.filter(r => r.ten_do_an && r.ten_do_an.trim());
-    if (validRows.length === 0) {
-      alert('Vui lòng nhập ít nhất 1 tên đề tài!');
+    if (formattedTopics.length === 0) {
+      alert('Vui lòng nhập ít nhất 1 tên đề tài hợp lệ!');
       return;
     }
 
@@ -285,22 +508,23 @@ export default function ClassroomPortalView() {
       const payload = {
         ten_mon_hoc: `Môn: ${currentClassInfo.ten_mon_hoc} • ${currentClassInfo.ten_lop}`,
         ma_giang_vien: 'u-gv-01',
-        topics: validRows.map(r => ({
-          ten_do_an: r.ten_do_an.trim(),
-          quy_mo: r.quy_mo,
-          noi_dung_muc_tieu: r.noi_dung_muc_tieu ? r.noi_dung_muc_tieu.trim() : undefined
-        }))
+        topics: formattedTopics
       };
 
       await createTopic(payload);
 
       // Reset về trạng thái mặc định
       setTopicRows([
-        { id: 1, ten_do_an: '', quy_mo: 'nhom', noi_dung_muc_tieu: '' },
-        { id: 2, ten_do_an: '', quy_mo: 'ca_nhan', noi_dung_muc_tieu: '' }
+        { id: 1, ten_do_an: '', so_luong_toi_da: 3, noi_dung_muc_tieu: '' },
+        { id: 2, ten_do_an: '', so_luong_toi_da: 1, noi_dung_muc_tieu: '' }
       ]);
       setBulkText('');
+      setExcelFile(null);
+      setExcelHeaders([]);
+      setExcelRows([]);
+      setTopicInputMode('rows');
       setIsCreateTopicModalOpen(false);
+      alert(`Đã công bố thành công ${formattedTopics.length} đề tài vào Ngân hàng lớp học!`);
     } catch (err) {
       alert(`Lỗi công bố đề tài: ${err.message}`);
     } finally {
@@ -308,20 +532,36 @@ export default function ClassroomPortalView() {
     }
   };
 
-  // Mở modal nhận đề tài cá nhân
+  // Mở modal nhận đề tài cá nhân (1 Sinh viên)
   const handleOpenSoloConfirm = (topic) => {
-    const defaultSvId = !isLecturer && currentUser ? currentUser.ma_nguoi_dung : 'u-sv-04';
+    // Mặc định chọn SV đang đăng nhập (nếu chưa có nhóm) hoặc SV đầu tiên chưa có nhóm
+    let defaultSvId = '';
+    if (!isLecturer && currentUser && !assignedStudentMap[currentUser.ma_nguoi_dung]) {
+      defaultSvId = currentUser.ma_nguoi_dung;
+    } else {
+      const firstAvailable = students.find(s => !assignedStudentMap[s.ma_nguoi_dung]);
+      defaultSvId = firstAvailable ? firstAvailable.ma_nguoi_dung : (students[0]?.ma_nguoi_dung || '');
+    }
     setSoloStudentId(defaultSvId);
     setSoloConfirmTopic(topic);
   };
 
   const handleConfirmSoloSubmit = async (e) => {
     e.preventDefault();
-    if (!soloConfirmTopic || !soloStudentId) return;
+    if (!soloConfirmTopic) return;
+    const targetSvId = currentAssignedStudent?.ma_nguoi_dung || soloStudentId;
+    if (!targetSvId) {
+      alert('Không xác định được sinh viên nhận đề tài!');
+      return;
+    }
+    if (assignedStudentMap[targetSvId]) {
+      alert(`Bạn đã thuộc nhóm "${assignedStudentMap[targetSvId].ten_nhom}". Không thể nhận thêm đề tài!`);
+      return;
+    }
     try {
       setSubmitting(true);
-      await registerSoloTopic(soloConfirmTopic.ma_do_an, soloStudentId);
-      if (!isLecturer) setCurrentUserId(soloStudentId);
+      await registerSoloTopic(soloConfirmTopic.ma_do_an, targetSvId);
+      if (!isLecturer) setCurrentUserId(targetSvId);
       setSoloConfirmTopic(null);
     } catch (err) {
       alert(`Lỗi nhận đề tài cá nhân: ${err.message}`);
@@ -332,20 +572,32 @@ export default function ClassroomPortalView() {
 
   // Mở modal lập nhóm
   const handleOpenTeamModal = (topic) => {
-    const unassigned = students.filter(s => !s.da_co_nhom);
+    if (!topic) return;
+
+    // Yêu cầu cốt lõi: Nếu đề tài chỉ cho 1 sinh viên, CHỈ hiển thị xác nhận nhận đề tài, không mở modal lập nhóm!
+    if (topic.so_luong_toi_da === 1 || topic.quy_mo === 'ca_nhan') {
+      return handleOpenSoloConfirm(topic);
+    }
+
+    // Task B3: Lọc loại trừ sinh viên đã có nhóm bằng assignedStudentMap
+    const unassigned = students.filter(s => !assignedStudentMap[s.ma_nguoi_dung]);
+
     let defaultMembers = [];
     let defaultLeader = '';
 
-    if (!isLecturer && currentUser) {
+    if (!isLecturer && currentUser && !assignedStudentMap[currentUser.ma_nguoi_dung]) {
       defaultLeader = currentUser.ma_nguoi_dung;
-      const partner = unassigned.find(s => s.ma_nguoi_dung !== currentUser.ma_nguoi_dung) || students.find(s => s.ma_nguoi_dung !== currentUser.ma_nguoi_dung);
+      const partner = unassigned.find(s => s.ma_nguoi_dung !== currentUser.ma_nguoi_dung);
       defaultMembers = partner ? [currentUser.ma_nguoi_dung, partner.ma_nguoi_dung] : [currentUser.ma_nguoi_dung];
     } else if (unassigned.length >= 2) {
       defaultLeader = unassigned[0].ma_nguoi_dung;
       defaultMembers = [unassigned[0].ma_nguoi_dung, unassigned[1].ma_nguoi_dung];
+    } else if (unassigned.length === 1) {
+      defaultLeader = unassigned[0].ma_nguoi_dung;
+      defaultMembers = [unassigned[0].ma_nguoi_dung];
     } else {
-      defaultLeader = students[0]?.ma_nguoi_dung || '';
-      defaultMembers = students.slice(0, 2).map(s => s.ma_nguoi_dung);
+      defaultLeader = '';
+      defaultMembers = [];
     }
 
     const nextNum = registeredGroups.filter(g => g.quy_mo === 'nhom').length + 5;
@@ -358,11 +610,19 @@ export default function ClassroomPortalView() {
   };
 
   const handleToggleMember = (studentId) => {
+    // Chặn tuyệt đối nếu sinh viên đã có nhóm
+    if (assignedStudentMap[studentId]) {
+      alert(`Sinh viên này đã thuộc ${assignedStudentMap[studentId].ten_nhom}. Không thể chọn vào nhóm mới!`);
+      return;
+    }
+
     setTeamForm(prev => {
       const exists = prev.memberIds.includes(studentId);
       let nextMembers = exists ? prev.memberIds.filter(id => id !== studentId) : [...prev.memberIds, studentId];
-      if (nextMembers.length > 3) {
-        alert('Đề tài nhóm giới hạn tối đa 3 sinh viên!');
+      // Task B2: Kiểm tra số lượng thành viên linh hoạt
+      const maxLimit = teamModalTopic?.so_luong_toi_da || 3;
+      if (nextMembers.length > maxLimit) {
+        alert(`Đề tài này chỉ cho phép tối đa ${maxLimit} sinh viên!`);
         return prev;
       }
       let nextLeader = prev.leaderId;
@@ -380,18 +640,20 @@ export default function ClassroomPortalView() {
       alert('Vui lòng đặt tên nhóm!');
       return;
     }
-    if (teamForm.memberIds.length < 2) {
-      alert('Đề tài nhóm cần tối thiểu 2 sinh viên tham gia!');
+    // Task B2: Cho phép tối thiểu 1 sinh viên (nếu 1 người tự động làm nhóm trưởng)
+    if (teamForm.memberIds.length < 1) {
+      alert('Đề tài nhóm cần tối thiểu 1 sinh viên tham gia!');
       return;
     }
     try {
       setSubmitting(true);
+      const effectiveLeaderId = teamForm.leaderId || teamForm.memberIds[0];
       await registerTeamTopic(teamModalTopic.ma_do_an, {
         ten_nhom: teamForm.ten_nhom.trim(),
-        leaderId: teamForm.leaderId,
+        leaderId: effectiveLeaderId,
         memberIds: teamForm.memberIds
       });
-      if (!isLecturer) setCurrentUserId(teamForm.leaderId);
+      if (!isLecturer) setCurrentUserId(effectiveLeaderId);
       setTeamModalTopic(null);
     } catch (err) {
       alert(`Lỗi đăng ký nhóm: ${err.message}`);
@@ -916,8 +1178,9 @@ export default function ClassroomPortalView() {
                   return true;
                 })
                 .map(t => {
+                  const scaleInfo = getTopicScaleInfo(t);
                   const isMyProject = hasEnrolledProject && (studentProject?.ma_do_an === t.ma_do_an);
-                  const isSolo = t.quy_mo === 'ca_nhan';
+                  const isSolo = scaleInfo.isSolo || (t.so_luong_toi_da === 1) || (t.quy_mo === 'ca_nhan');
                   const isRegistered = t.da_dang_ky;
 
                   return (
@@ -940,13 +1203,13 @@ export default function ClassroomPortalView() {
                             style={{
                               fontSize: '10.5px',
                               fontWeight: 700,
-                              color: isSolo ? '#0369a1' : '#6d28d9',
-                              background: isSolo ? '#e0f2fe' : '#f3e8ff',
+                              color: scaleInfo.color,
+                              background: scaleInfo.bg,
                               padding: '2px 8px',
                               borderRadius: '999px'
                             }}
                           >
-                            {isSolo ? '1 SV' : 'Nhóm'}
+                            {scaleInfo.label}
                           </span>
 
                           {isMyProject ? (
@@ -1007,7 +1270,7 @@ export default function ClassroomPortalView() {
                               borderColor: isSolo ? '#0284c7' : '#7c3aed'
                             }}
                           >
-                            {isSolo ? '⚡ Nhận đề tài' : '👥 Lập nhóm'}
+                            {isSolo ? '⚡ Xác nhận nhận đề tài' : '👥 Lập nhóm'}
                           </button>
                         ) : (
                           <span style={{ flex: 1, textAlign: 'right', fontSize: '11px', color: 'var(--text-subtle)' }}>
@@ -1107,11 +1370,12 @@ export default function ClassroomPortalView() {
               <button className="drawer-close-btn" onClick={() => setIsCreateTopicModalOpen(false)}>✕</button>
             </div>
 
-            {/* Thanh chuyển chế độ nhập: Nhập danh sách vs Dán hàng loạt */}
+            {/* Thanh chuyển chế độ nhập: Nhập danh sách vs Dán hàng loạt vs Import Excel */}
             <div style={{ padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', background: 'var(--surface-subtle)', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '6px', paddingTop: '8px', paddingBottom: '8px' }}>
                 <button
                   type="button"
+                  data-tour-id="tab-manual-topic"
                   className={`tab-btn ${topicInputMode === 'rows' ? 'active' : ''}`}
                   onClick={() => setTopicInputMode('rows')}
                   style={{ fontSize: '12px', padding: '5px 12px', fontWeight: 600 }}
@@ -1126,24 +1390,35 @@ export default function ClassroomPortalView() {
                 >
                   📋 Dán nhanh hàng loạt (Bulk Paste)
                 </button>
+                <button
+                  type="button"
+                  data-tour-id="tab-import-excel"
+                  className={`tab-btn ${topicInputMode === 'excel' ? 'active' : ''}`}
+                  onClick={() => setTopicInputMode('excel')}
+                  style={{ fontSize: '12px', padding: '5px 12px', fontWeight: 700, color: topicInputMode === 'excel' ? '#15803d' : undefined }}
+                >
+                  📊 Import từ Excel / CSV
+                </button>
               </div>
 
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={handleLoadSampleTopics}
-                title="Tự động điền 4 đề tài mẫu thực tế chuẩn Công nghệ phần mềm"
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: '#2563eb',
-                  borderColor: '#bfdbfe',
-                  background: '#eff6ff',
-                  padding: '4px 10px'
-                }}
-              >
-                ✨ Nạp 4 đề tài mẫu gợi ý
-              </button>
+              {topicInputMode === 'rows' && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={handleLoadSampleTopics}
+                  title="Tự động điền 4 đề tài mẫu thực tế chuẩn Công nghệ phần mềm"
+                  style={{
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    color: '#2563eb',
+                    borderColor: '#bfdbfe',
+                    background: '#eff6ff',
+                    padding: '4px 10px'
+                  }}
+                >
+                  ✨ Nạp 4 đề tài mẫu gợi ý
+                </button>
+              )}
             </div>
 
             <form onSubmit={handleCreateTopicSubmit}>
@@ -1172,7 +1447,7 @@ export default function ClassroomPortalView() {
                         style={{
                           background: 'var(--surface-raised)',
                           border: '1px solid var(--border)',
-                          borderLeft: row.quy_mo === 'ca_nhan' ? '4px solid #0284c7' : '4px solid #7c3aed',
+                          borderLeft: row.so_luong_toi_da === 1 ? '4px solid #0284c7' : '4px solid #7c3aed',
                           borderRadius: '10px',
                           padding: '14px 16px',
                           display: 'flex',
@@ -1181,49 +1456,59 @@ export default function ClassroomPortalView() {
                           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
                         }}
                       >
-                        {/* Header của từng dòng đề tài: STT + Chọn Quy mô + Nút Xóa */}
+                        {/* Header của từng dòng đề tài: STT + Chọn Quy mô linh hoạt + Nút Xóa */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text)' }}>
                             Đề tài #{idx + 1}
                           </span>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {/* Toggle Quy mô */}
-                            <div style={{ display: 'inline-flex', background: 'var(--surface-subtle)', borderRadius: '8px', padding: '2px', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-subtle)', borderRadius: '8px', padding: '4px 10px', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Quy mô:</span>
+                              <span style={{ fontWeight: 800, color: (row.so_luong_toi_da || 1) === 1 ? '#0284c7' : '#7c3aed', background: (row.so_luong_toi_da || 1) === 1 ? '#e0f2fe' : '#f3e8ff', padding: '1px 6px', borderRadius: '4px' }}>
+                                {(row.so_luong_toi_da || 1) === 1 ? 'Cá nhân (1 SV)' : `Nhóm (1-${row.so_luong_toi_da || 3} SV)`}
+                              </span>
+                            </div>
+
+                            {/* Bộ điều khiển tự động nâng / hạ quy mô */}
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                               <button
                                 type="button"
-                                onClick={() => handleUpdateTopicRow(row.id, 'quy_mo', 'nhom')}
-                                style={{
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  padding: '3px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: row.quy_mo === 'nhom' ? 700 : 500,
-                                  background: row.quy_mo === 'nhom' ? '#7c3aed' : 'transparent',
-                                  color: row.quy_mo === 'nhom' ? '#ffffff' : 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease'
-                                }}
+                                title="Hạ quy mô sinh viên (-1)"
+                                onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', Math.max(1, (Number(row.so_luong_toi_da) || 3) - 1))}
+                                style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
                               >
-                                👥 Nhóm (2-3 SV)
+                                -
                               </button>
+                              <input
+                                type="number"
+                                data-tour-id="topic-max-members-input"
+                                min="1"
+                                max="50"
+                                value={row.so_luong_toi_da || 1}
+                                onChange={e => {
+                                  const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                  handleUpdateTopicRow(row.id, 'so_luong_toi_da', val);
+                                }}
+                                style={{
+                                  width: '44px',
+                                  padding: '2px 4px',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--border)',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  textAlign: 'center'
+                                }}
+                              />
                               <button
                                 type="button"
-                                onClick={() => handleUpdateTopicRow(row.id, 'quy_mo', 'ca_nhan')}
-                                style={{
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  padding: '3px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: row.quy_mo === 'ca_nhan' ? 700 : 500,
-                                  background: row.quy_mo === 'ca_nhan' ? '#0284c7' : 'transparent',
-                                  color: row.quy_mo === 'ca_nhan' ? '#ffffff' : 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease'
-                                }}
+                                title="Nâng quy mô sinh viên (+1)"
+                                onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', Math.min(50, (Number(row.so_luong_toi_da) || 1) + 1))}
+                                style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
                               >
-                                👤 Cá nhân (1 SV)
+                                +
                               </button>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>SV</span>
                             </div>
 
                             {/* Nút xóa dòng nếu có từ 2 dòng trở lên */}
@@ -1239,7 +1524,8 @@ export default function ClassroomPortalView() {
                                   cursor: 'pointer',
                                   fontSize: '13px',
                                   padding: '2px 6px',
-                                  borderRadius: '4px'
+                                  borderRadius: '4px',
+                                  marginLeft: '4px'
                                 }}
                               >
                                 ✕
@@ -1344,11 +1630,170 @@ export default function ClassroomPortalView() {
                     </div>
                   </div>
                 )}
+
+                {/* ---------------- CHẾ ĐỘ 3: IMPORT TỪ FILE EXCEL / CSV (TASK B4) ---------------- */}
+                {topicInputMode === 'excel' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#166534' }}>
+                      📊 <strong>Import từ Excel / CSV của Giảng viên:</strong> Chọn file danh sách đề tài riêng (.xlsx, .xls, .csv). Hệ thống hỗ trợ đọc cả file chỉ có duy nhất cột Tên đề tài và tự động lọc tiêu đề.
+                    </div>
+
+                    {/* Khung tải file Dropzone */}
+                    <div
+                      data-tour-id="excel-dropzone"
+                      style={{
+                        border: '2px dashed #86efac',
+                        borderRadius: '10px',
+                        padding: '24px 16px',
+                        background: '#f8fafc',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={() => document.getElementById('excelFileInput')?.click()}
+                    >
+                      <input
+                        id="excelFileInput"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        style={{ display: 'none' }}
+                        onChange={handleExcelFileUpload}
+                      />
+                      <div style={{ fontSize: '32px', marginBottom: '6px' }}>📑</div>
+                      <div style={{ fontWeight: 700, fontSize: '13px', color: '#15803d' }}>
+                        {excelFile ? `Đã nạp file: ${excelFile.name} (${(excelFile.size / 1024).toFixed(1)} KB)` : 'Nhấp vào đây để chọn File Excel / CSV (.xlsx, .xls, .csv)'}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        Tự động phân tích sheet đầu tiên & hiển thị giao diện ánh xạ cột bên dưới
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '-4px' }}>
+                      <a
+                        href="/danh-sach-de-tai-mau.xlsx"
+                        download="danh-sach-de-tai-mau.xlsx"
+                        style={{ fontSize: '12px', color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        📥 Tải file Excel mẫu (.xlsx) để test thử
+                      </a>
+                    </div>
+
+                    {excelError && (
+                      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#b91c1c' }}>
+                        ⚠️ {excelError}
+                      </div>
+                    )}
+
+                    {excelHeaders.length > 0 && (
+                      <div data-tour-id="excel-column-mapping" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text)' }}>
+                          🔍 Ánh xạ Cột & Cấu hình Nhóm cho Đề tài Import
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                          <div>
+                            <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                              Cột Tên đề tài (* Bắt buộc):
+                            </label>
+                            <select
+                              className="form-select"
+                              value={excelMapping.topicCol}
+                              onChange={e => setExcelMapping(prev => ({ ...prev, topicCol: e.target.value }))}
+                              style={{ fontSize: '12px', fontWeight: 600 }}
+                            >
+                              {excelHeaders.map(h => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                              Cột Mô tả / Thông tin:
+                            </label>
+                            <select
+                              className="form-select"
+                              value={excelMapping.descCol}
+                              onChange={e => setExcelMapping(prev => ({ ...prev, descCol: e.target.value }))}
+                              style={{ fontSize: '12px' }}
+                            >
+                              <option value="__NONE__">(Không có / Bỏ qua cột này)</option>
+                              {excelHeaders.map(h => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                              Quy định Số lượng SV cho đề tài:
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Tối đa:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="50"
+                                value={excelMapping.maxMembers}
+                                onChange={e => setExcelMapping(prev => ({ ...prev, maxMembers: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                                style={{ width: '56px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', borderRadius: '4px', border: '1px solid var(--border)', fontWeight: 700 }}
+                              />
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>SV / nhóm</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bảng xem trước dữ liệu Preview */}
+                        <div style={{ marginTop: '8px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                            Xem trước các dòng đầu tiên (Tổng cộng: {excelRows.length} dòng dữ liệu):
+                          </div>
+                          <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                            <table style={{ width: '100%', fontSize: '11.5px', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
+                                  <th style={{ padding: '6px 10px', textAlign: 'left', width: '40px' }}>STT</th>
+                                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Tên đề tài trích xuất</th>
+                                  <th style={{ padding: '6px 10px', textAlign: 'left', width: '140px' }}>Quy mô áp dụng</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {excelRows.slice(0, 5).map((r, i) => {
+                                  const tCol = excelHeaders.indexOf(excelMapping.topicCol);
+                                  const title = tCol >= 0 ? String(r[tCol] || '').trim() : '';
+                                  return (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                      <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{i + 1}</td>
+                                      <td style={{ padding: '6px 10px', fontWeight: 600 }}>{title || <em style={{ color: '#ef4444' }}>(Dòng trống)</em>}</td>
+                                      <td style={{ padding: '6px 10px', color: '#7c3aed', fontWeight: 600 }}>
+                                        {excelMapping.maxMembers === 1 ? 'Cá nhân (1 SV)' : `Nhóm (${excelMapping.maxMembers} SV)`}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {topicInputMode === 'rows' ? (
+                  {topicInputMode === 'excel' ? (
+                    <span>
+                      {excelRows.length > 0
+                        ? `Sẵn sàng công bố ${excelRows.filter(r => {
+                            const tCol = excelHeaders.indexOf(excelMapping.topicCol);
+                            return tCol >= 0 && String(r[tCol] || '').trim();
+                          }).length} đề tài từ file Excel`
+                        : 'Chưa có file Excel được tải lên'}
+                    </span>
+                  ) : topicInputMode === 'rows' ? (
                     <span>
                       Đang chuẩn bị <strong>{topicRows.filter(r => r.ten_do_an.trim()).length}</strong> đề tài cho lớp
                     </span>
@@ -1382,35 +1827,43 @@ export default function ClassroomPortalView() {
         <div className="modal-backdrop open" onClick={() => setSoloConfirmTopic(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3>👤 Nhận Đề tài Cá nhân (1 Sinh viên)</h3>
+              <h3>⚡ Xác nhận Nhận Đề tài (1 Sinh viên)</h3>
               <button className="drawer-close-btn" onClick={() => setSoloConfirmTopic(null)}>✕</button>
             </div>
             <form onSubmit={handleConfirmSoloSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '12px 14px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>
-                    Đề tài Cá nhân (1 Người thực hiện)
+                    ĐỀ TÀI CÁ NHÂN (1 NGƯỜI THỰC HIỆN)
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: '#0c4a6e', marginTop: '4px' }}>
                     {soloConfirmTopic.ten_do_an}
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Sinh viên nhận đề tài này về cho mình:</label>
-                  <select
-                    className="form-select"
-                    value={soloStudentId}
-                    onChange={e => setSoloStudentId(e.target.value)}
-                    required
-                  >
-                    {students.map(s => (
-                      <option key={s.ma_nguoi_dung} value={s.ma_nguoi_dung}>
-                        {s.ho_ten} ({s.email}) {s.da_co_nhom ? '— Đã có đề tài' : '— Chưa có đề tài'}
-                      </option>
-                    ))}
-                  </select>
+                {/* Thông tin sinh viên nhận đề tài: Tự động gán cho tài khoản đang thao tác (Không cần chọn thủ công) */}
+                <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '15px' }}>
+                    {getInitials(currentAssignedStudent?.ho_ten || 'SV')}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>
+                      Sinh viên thực hiện đề tài:
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', marginTop: '2px' }}>
+                      {currentAssignedStudent?.ho_ten || 'Sinh viên'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {currentAssignedStudent?.email || ''}
+                    </div>
+                  </div>
+                  {assignedStudentMap[currentAssignedStudent?.ma_nguoi_dung] && (
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '3px 8px', borderRadius: '6px' }}>
+                      🔒 Đã thuộc {assignedStudentMap[currentAssignedStudent?.ma_nguoi_dung].ten_nhom}
+                    </span>
+                  )}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--surface-subtle)', padding: '10px 12px', borderRadius: '8px' }}>
+
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px dashed var(--border)' }}>
                   ℹ️ Bạn sẽ là người duy nhất quản lý tiến độ cho đề tài này và làm việc trực tiếp với Giảng viên.
                 </div>
               </div>
@@ -1440,8 +1893,13 @@ export default function ClassroomPortalView() {
             <form onSubmit={handleTeamSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '10px', padding: '12px 14px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase' }}>
-                    Đề tài Nhóm (2 - 3 Sinh viên)
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase' }}>
+                      {teamModalTopic.so_luong_toi_da === 1 ? 'Đề tài Cá nhân (1 Sinh viên)' : `Đề tài Nhóm (Tối đa ${teamModalTopic.so_luong_toi_da || 3} Sinh viên)`}
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: teamForm.memberIds.length <= 1 ? '#0284c7' : '#7c3aed', background: teamForm.memberIds.length <= 1 ? '#e0f2fe' : '#f3e8ff', padding: '2px 8px', borderRadius: '999px' }}>
+                      Quy mô nhóm: {teamForm.memberIds.length <= 1 ? 'Cá nhân (1 SV)' : `Nhóm (${teamForm.memberIds.length} SV)`}
+                    </span>
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: '#4c1d95', marginTop: '3px' }}>
                     {teamModalTopic.ten_do_an}
@@ -1461,40 +1919,68 @@ export default function ClassroomPortalView() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">2. Chọn Thành viên & Chỉ định ai là Nhóm trưởng (*)</label>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>2. Chọn Thành viên & Chỉ định ai là Nhóm trưởng (*)</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed' }}>
+                      Đang chọn: {teamForm.memberIds.length} / {teamModalTopic.so_luong_toi_da || 3} SV
+                    </span>
+                  </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
                     {students.map(sv => {
+                      // Kiểm tra xem sinh viên đã có nhóm hoặc đã nhận đề tài hay chưa bằng assignedStudentMap
+                      const assignedInfo = assignedStudentMap[sv.ma_nguoi_dung];
+                      const isAlreadyAssigned = Boolean(assignedInfo);
                       const isSelected = teamForm.memberIds.includes(sv.ma_nguoi_dung);
                       const isLeaderSelected = teamForm.leaderId === sv.ma_nguoi_dung;
                       return (
                         <div
                           key={sv.ma_nguoi_dung}
+                          data-tour-id={isAlreadyAssigned ? "team-member-disabled" : undefined}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             padding: '8px 12px',
                             borderRadius: '8px',
-                            border: isSelected ? '1.5px solid #7c3aed' : '1px solid var(--border)',
-                            background: isSelected ? '#faf5ff' : 'var(--surface)',
-                            cursor: 'pointer'
+                            border: isAlreadyAssigned 
+                              ? '1px dashed #cbd5e1' 
+                              : (isSelected ? '1.5px solid #7c3aed' : '1px solid var(--border)'),
+                            background: isAlreadyAssigned 
+                              ? 'var(--surface-subtle, #f8fafc)' 
+                              : (isSelected ? '#faf5ff' : 'var(--surface)'),
+                            opacity: isAlreadyAssigned ? 0.45 : 1,
+                            pointerEvents: isAlreadyAssigned ? 'none' : 'auto',
+                            cursor: isAlreadyAssigned ? 'not-allowed' : 'pointer',
+                            userSelect: 'none'
                           }}
-                          onClick={() => handleToggleMember(sv.ma_nguoi_dung)}
+                          onClick={() => {
+                            if (!isAlreadyAssigned) handleToggleMember(sv.ma_nguoi_dung);
+                          }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <input
                               type="checkbox"
-                              checked={isSelected}
+                              checked={!isAlreadyAssigned && isSelected}
+                              disabled={isAlreadyAssigned}
                               onChange={() => { }}
-                              style={{ accentColor: '#7c3aed', cursor: 'pointer' }}
+                              style={{ accentColor: '#7c3aed', cursor: isAlreadyAssigned ? 'not-allowed' : 'pointer' }}
                             />
                             <div>
-                              <div style={{ fontWeight: 600, fontSize: '13px' }}>{sv.ho_ten}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 600, fontSize: '13px', color: isAlreadyAssigned ? '#94a3b8' : 'inherit' }}>
+                                  {sv.ho_ten}
+                                </span>
+                                {isAlreadyAssigned && (
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: '4px' }}>
+                                    🔒 Đã thuộc {assignedInfo.ten_nhom}
+                                  </span>
+                                )}
+                              </div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sv.email}</div>
                             </div>
                           </div>
 
-                          {isSelected && (
+                          {isSelected && !isAlreadyAssigned && (
                             <div onClick={e => e.stopPropagation()}>
                               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: isLeaderSelected ? '#b45309' : '#475569', cursor: 'pointer' }}>
                                 <input
@@ -1539,8 +2025,8 @@ export default function ClassroomPortalView() {
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: detailTopicModal.quy_mo === 'ca_nhan' ? '#e0f2fe' : '#f3e8ff', color: detailTopicModal.quy_mo === 'ca_nhan' ? '#0369a1' : '#6d28d9' }}>
-                  {detailTopicModal.quy_mo === 'ca_nhan' ? 'Đề tài Cá nhân (1 SV)' : 'Đề tài Nhóm'}
+                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: getTopicScaleInfo(detailTopicModal).bg, color: getTopicScaleInfo(detailTopicModal).color }}>
+                  {getTopicScaleInfo(detailTopicModal).label}
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: detailTopicModal.da_dang_ky ? '#dcfce7' : '#fef3c7', color: detailTopicModal.da_dang_ky ? '#15803d' : '#b45309' }}>
                   {detailTopicModal.da_dang_ky ? `Đã nhận (${detailTopicModal.team?.ten_nhom})` : 'Còn trống'}

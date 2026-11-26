@@ -66,13 +66,50 @@ function recalculateProjectProgress(projectId = 'da-dacs-01') {
 
 // Helper to parse topic scale from noi_dung_muc_tieu without altering BCNF schema
 function parseTopicMeta(noiDung = '') {
-  const isSolo = /^\[CÁ NHÂN/i.test(noiDung.trim());
-  const cleanDesc = noiDung.replace(/^\[(CÁ NHÂN|NHÓM)[^\]]*\]\s*/i, '').trim();
+  const trimmed = (noiDung || '').trim();
+  const matchSl = trimmed.match(/^\[SL:\s*1-(∞|\d+)\]/i);
+  const isOldSolo = /^\[CÁ NHÂN/i.test(trimmed);
+  const matchOldGroup = trimmed.match(/^\[NHÓM\s*(\d+)-(\d+|∞)\s*SV\]/i);
+
+  let max = 3;
+  let isUnlimited = false;
+
+  if (matchSl) {
+    if (matchSl[1] === '∞') {
+      isUnlimited = true;
+      max = null;
+    } else {
+      max = parseInt(matchSl[1], 10) || 3;
+    }
+  } else if (isOldSolo) {
+    max = 1;
+  } else if (matchOldGroup) {
+    if (matchOldGroup[2] === '∞') {
+      isUnlimited = true;
+      max = null;
+    } else {
+      max = parseInt(matchOldGroup[2], 10) || 3;
+    }
+  }
+
+  const isSolo = !isUnlimited && max === 1;
+  const cleanDesc = trimmed.replace(/^\[(CÁ NHÂN|NHÓM|SL)[^\]]*\]\s*/i, '').trim();
+
+  let nhanQuyMo = 'Đề tài Nhóm (2-3 SV)';
+  if (isSolo) {
+    nhanQuyMo = 'Đề tài Cá nhân (1 SV)';
+  } else if (isUnlimited) {
+    nhanQuyMo = 'Đề tài Nhóm (Không giới hạn SV)';
+  } else {
+    nhanQuyMo = `Đề tài Nhóm (1 - ${max} SV)`;
+  }
+
   return {
     quy_mo: isSolo ? 'ca_nhan' : 'nhom',
-    nhan_quy_mo: isSolo ? 'Đề tài Cá nhân (1 SV)' : 'Đề tài Nhóm (2-3 SV)',
-    so_luong_toi_da: isSolo ? 1 : 3,
-    mo_ta_sach: cleanDesc || noiDung
+    so_luong_toi_da: max,
+    is_unlimited: isUnlimited,
+    nhan_quy_mo: nhanQuyMo,
+    mo_ta_sach: cleanDesc || trimmed
   };
 }
 
@@ -182,7 +219,7 @@ const server = http.createServer(async (req, res) => {
         : null;
 
       const allMemberships = db.prepare(`
-        SELECT tv.vai_tro_trong_nhom, n.ma_nhom, n.ten_nhom, n.ma_do_an, d.ten_do_an
+        SELECT tv.vai_tro_trong_nhom, n.ma_nhom, n.ten_nhom, n.ma_do_an, d.ten_do_an, d.ten_mon_hoc
         FROM thanh_vien_nhom tv
         JOIN nhom n ON tv.ma_nhom = n.ma_nhom
         JOIN do_an d ON n.ma_do_an = d.ma_do_an
@@ -291,8 +328,20 @@ const server = http.createServer(async (req, res) => {
       for (let i = 0; i < validTopics.length; i++) {
         const item = validTopics[i];
         const newTopicId = `da-topic-${baseTimestamp}-${i + 1}`;
-        const isSolo = item.quy_mo === 'ca_nhan';
-        const prefix = isSolo ? '[CÁ NHÂN 1 SV] ' : '[NHÓM 2-3 SV] ';
+        const isUnlimited = !!item.is_unlimited || item.so_luong_toi_da === null || item.so_luong_toi_da === 'unlimited';
+        const parsedMax = parseInt(item.so_luong_toi_da, 10);
+        const maxMembers = isUnlimited ? null : (isNaN(parsedMax) ? (item.quy_mo === 'ca_nhan' ? 1 : 3) : parsedMax);
+        const isSolo = !isUnlimited && maxMembers === 1;
+
+        let prefix = '[NHÓM 1-3 SV] ';
+        if (isUnlimited) {
+          prefix = '[SL: 1-∞] ';
+        } else if (isSolo) {
+          prefix = '[CÁ NHÂN 1 SV] ';
+        } else {
+          prefix = `[SL: 1-${maxMembers}] `;
+        }
+
         const rawDesc = (item.noi_dung_muc_tieu || 'Xây dựng ứng dụng phần mềm theo yêu cầu môn học và bảo vệ trước giảng viên.').trim();
         const fullDesc = rawDesc.startsWith('[') ? rawDesc : `${prefix}${rawDesc}`;
         const courseName = (item.ten_mon_hoc || body.ten_mon_hoc || 'Môn: Công nghệ phần mềm • Lớp 21DTHC5').trim();
@@ -305,7 +354,13 @@ const server = http.createServer(async (req, res) => {
         insertMs.run(`moc-${baseTimestamp}-${i + 1}-2`, newTopicId, 'Mốc 2: Thiết kế CSDL BCNF & Giao diện hệ thống', '2026-10-28', 'Chuẩn hóa lược đồ cơ sở dữ liệu và thiết kế giao diện người dùng.');
         insertMs.run(`moc-${baseTimestamp}-${i + 1}-3`, newTopicId, 'Mốc 3: Lập trình hoàn thiện & Báo cáo nghiệm thu', '2026-11-20', 'Kiểm thử chức năng, hoàn thiện báo cáo thuyết minh và bảo vệ đồ án.');
 
-        createdTopics.push({ ma_do_an: newTopicId, ten_do_an: item.ten_do_an.trim(), quy_mo: item.quy_mo || 'nhom' });
+        createdTopics.push({
+          ma_do_an: newTopicId,
+          ten_do_an: item.ten_do_an.trim(),
+          quy_mo: isSolo ? 'ca_nhan' : 'nhom',
+          so_luong_toi_da: maxMembers,
+          is_unlimited: isUnlimited
+        });
       }
 
       return sendJson(res, 201, {
@@ -334,6 +389,23 @@ const server = http.createServer(async (req, res) => {
       const existingTeam = db.prepare(`SELECT * FROM nhom WHERE ma_do_an = ?`).get(topicId);
       if (existingTeam) {
         return sendJson(res, 400, { error: 'Đề tài này đã có người đăng ký!' });
+      }
+
+      // Task B3: Kiểm tra sinh viên đã thuộc nhóm nào trong môn học này chưa
+      const conflict = db.prepare(`
+        SELECT tv.ma_nguoi_dung, u.ho_ten, n.ten_nhom, d.ten_mon_hoc
+        FROM thanh_vien_nhom tv
+        JOIN nhom n ON tv.ma_nhom = n.ma_nhom
+        JOIN do_an d ON n.ma_do_an = d.ma_do_an
+        JOIN nguoi_dung u ON tv.ma_nguoi_dung = u.ma_nguoi_dung
+        WHERE d.ten_mon_hoc = ? AND tv.ma_nguoi_dung = ?
+        LIMIT 1
+      `).get(topic.ten_mon_hoc, userId);
+
+      if (conflict) {
+        return sendJson(res, 400, {
+          error: `Sinh viên "${conflict.ho_ten}" đã thuộc nhóm "${conflict.ten_nhom}" trong môn học này!`
+        });
       }
 
       const student = db.prepare(`SELECT * FROM nguoi_dung WHERE ma_nguoi_dung = ?`).get(userId);
@@ -403,9 +475,13 @@ const server = http.createServer(async (req, res) => {
       if (!ten_nhom || !ten_nhom.trim()) {
         return sendJson(res, 400, { error: 'Vui lòng đặt tên nhóm thực hiện đồ án' });
       }
-      if (!leaderId) {
-        return sendJson(res, 400, { error: 'Vui lòng chỉ định ai là Nhóm trưởng' });
+
+      const allUniqueIds = Array.from(new Set([leaderId, ...memberIds].filter(Boolean)));
+      if (allUniqueIds.length === 0) {
+        return sendJson(res, 400, { error: 'Vui lòng chọn ít nhất 1 sinh viên tham gia nhóm' });
       }
+
+      const effectiveLeaderId = leaderId || allUniqueIds[0];
 
       const topic = db.prepare(`SELECT * FROM do_an WHERE ma_do_an = ?`).get(topicId);
       if (!topic) return sendJson(res, 404, { error: 'Không tìm thấy đề tài' });
@@ -415,19 +491,44 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'Đề tài này đã có nhóm khác đăng ký!' });
       }
 
+      // Task B2: Kiểm tra số lượng thành viên linh hoạt theo parseTopicMeta
+      const meta = parseTopicMeta(topic.noi_dung_muc_tieu);
+      if (!meta.is_unlimited && meta.so_luong_toi_da && allUniqueIds.length > meta.so_luong_toi_da) {
+        return sendJson(res, 400, {
+          error: `Đề tài này chỉ cho phép tối đa ${meta.so_luong_toi_da} sinh viên! (Bạn đang chọn ${allUniqueIds.length} bạn)`
+        });
+      }
+
+      // Task B3: Kiểm tra xem có thành viên nào đã thuộc nhóm khác trong môn học này không
+      const placeholders = allUniqueIds.map(() => '?').join(',');
+      const conflict = db.prepare(`
+        SELECT tv.ma_nguoi_dung, u.ho_ten, n.ten_nhom, d.ten_mon_hoc
+        FROM thanh_vien_nhom tv
+        JOIN nhom n ON tv.ma_nhom = n.ma_nhom
+        JOIN do_an d ON n.ma_do_an = d.ma_do_an
+        JOIN nguoi_dung u ON tv.ma_nguoi_dung = u.ma_nguoi_dung
+        WHERE d.ten_mon_hoc = ? AND tv.ma_nguoi_dung IN (${placeholders})
+        LIMIT 1
+      `).get(topic.ten_mon_hoc, ...allUniqueIds);
+
+      if (conflict) {
+        return sendJson(res, 400, {
+          error: `Sinh viên "${conflict.ho_ten}" đã thuộc nhóm "${conflict.ten_nhom}" trong môn học này!`
+        });
+      }
+
       const newTeamId = `nhom-${Date.now()}`;
       db.prepare(`INSERT INTO nhom (ma_nhom, ma_do_an, ten_nhom) VALUES (?, ?, ?)`).run(
         newTeamId, topicId, ten_nhom.trim()
       );
 
-      const allUniqueIds = Array.from(new Set([leaderId, ...memberIds]));
       const insertMember = db.prepare(`
         INSERT INTO thanh_vien_nhom (ma_thanh_vien_nhom, ma_nhom, ma_nguoi_dung, vai_tro_trong_nhom)
         VALUES (?, ?, ?, ?)
       `);
 
       allUniqueIds.forEach((uid, idx) => {
-        const role = uid === leaderId ? 'nhom_truong' : 'thanh_vien';
+        const role = uid === effectiveLeaderId ? 'nhom_truong' : 'thanh_vien';
         insertMember.run(`tvn-${Date.now()}-${idx}`, newTeamId, uid, role);
       });
 
@@ -494,6 +595,39 @@ const server = http.createServer(async (req, res) => {
       db.prepare(`DELETE FROM cong_viec WHERE ma_do_an = ?`).run(topicId);
       db.prepare(`UPDATE do_an SET tien_do_tong = 0.0 WHERE ma_do_an = ?`).run(topicId);
       return sendJson(res, 200, { success: true });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  // 3F. DELETE /api/topics/:id (Giảng viên xóa đề tài khỏi Ngân hàng đề tài)
+  const deleteTopicMatch = pathname.match(/^\/?api\/topics\/([^/?#]+)$/);
+  if (method === 'DELETE' && deleteTopicMatch) {
+    const topicId = decodeURIComponent(deleteTopicMatch[1]);
+    if (topicId === 'da-dacs-01') {
+      return sendJson(res, 400, { error: 'Không thể xóa đề tài mẫu gốc của Nhóm 05.' });
+    }
+    try {
+      const topic = db.prepare(`SELECT * FROM do_an WHERE ma_do_an = ?`).get(topicId);
+      if (!topic) {
+        return sendJson(res, 404, { error: 'Không tìm thấy đề tài để xóa' });
+      }
+
+      // Xóa sạch dữ liệu cascade của đề tài để bảo toàn tính toàn vẹn CSDL
+      db.prepare(`DELETE FROM thong_bao WHERE ma_do_an = ?`).run(topicId);
+      db.prepare(`DELETE FROM tep_dinh_kem WHERE ma_cong_viec IN (SELECT ma_cong_viec FROM cong_viec WHERE ma_do_an = ?)`).run(topicId);
+      db.prepare(`DELETE FROM binh_luan WHERE ma_cong_viec IN (SELECT ma_cong_viec FROM cong_viec WHERE ma_do_an = ?)`).run(topicId);
+      db.prepare(`DELETE FROM cong_viec WHERE ma_do_an = ?`).run(topicId);
+      db.prepare(`DELETE FROM moc_tien_do WHERE ma_do_an = ?`).run(topicId);
+      db.prepare(`DELETE FROM thanh_vien_nhom WHERE ma_nhom IN (SELECT ma_nhom FROM nhom WHERE ma_do_an = ?)`).run(topicId);
+      db.prepare(`DELETE FROM nhom WHERE ma_do_an = ?`).run(topicId);
+      db.prepare(`DELETE FROM lien_ket_github WHERE ma_do_an = ?`).run(topicId);
+      db.prepare(`DELETE FROM do_an WHERE ma_do_an = ?`).run(topicId);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: `Đã xóa đề tài "${topic.ten_do_an}" thành công!`
+      });
     } catch (err) {
       return sendJson(res, 400, { error: err.message });
     }

@@ -11,6 +11,22 @@
 export const GUIDE_TOUR_VERSION = '0.1.0-draft';
 export const GUIDE_TOUR_ENABLED = false; // Chỉ bật thành true khi chốt xong dự án
 
+// Danh sách các điểm neo Tour đã đăng ký trong giao diện (Task B5)
+export const REGISTERED_TOUR_TARGETS = [
+  'tour-class-selector',
+  'tour-gv-add-topics',
+  'tab-manual-topic',
+  'tab-import-excel',
+  'excel-dropzone',
+  'excel-column-mapping',
+  'topic-max-members-input',
+  'team-member-disabled',
+  'tour-gv-groups-tab',
+  'tour-sv-status-card',
+  'tour-nav-kanban',
+  'tour-nav-github'
+];
+
 export const GUIDE_TOUR_SCHEMA = {
   // Các bước hướng dẫn dành cho Giảng viên phụ trách môn học (GVPTMH)
   lecturer: [

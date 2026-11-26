@@ -207,6 +207,26 @@ export function ProjectProvider({ children }) {
     await loadData(nextProj);
   }, [activeProjectId, loadData]);
 
+  // Action: Giảng viên xóa đề tài khỏi Ngân hàng đề tài
+  const handleDeleteTopic = useCallback(async (topicId) => {
+    // Optimistic update: xóa ngay khỏi state topics trên giao diện người dùng
+    setTopics(prev => prev.filter(t => t.ma_do_an !== topicId));
+
+    try {
+      const res = await apiService.deleteTopic(topicId);
+      const nextProj = activeProjectId === topicId ? 'da-dacs-01' : activeProjectId;
+      if (activeProjectId === topicId) {
+        setActiveProjectId('da-dacs-01');
+      }
+      await loadData(nextProj);
+      return res;
+    } catch (err) {
+      // Nếu có lỗi từ server, nạp lại trạng thái thực tế từ CSDL
+      await loadData(activeProjectId).catch(() => {});
+      throw err;
+    }
+  }, [activeProjectId, loadData]);
+
   // Current user & role resolution
   const currentUser = useMemo(() => {
     return users.find(u => u.ma_nguoi_dung === currentUserId) || null;
@@ -426,6 +446,7 @@ export function ProjectProvider({ children }) {
     logout,
     switchProject,
     createTopic: handleCreateTopic,
+    deleteTopic: handleDeleteTopic,
     registerSoloTopic: handleRegisterSoloTopic,
     registerTeamTopic: handleRegisterTeamTopic,
     resetTopicRegistration: handleResetTopicRegistration,

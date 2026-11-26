@@ -63,13 +63,13 @@
 ├── 2️⃣ QUẢN LÝ LỚP HỌC PHẦN, NGÂN HÀNG ĐỀ TÀI & PHÂN TẦNG TRẢI NGHIỆM (TWO-TIER ARCHITECTURE)
 │   ├── Đặc tả: [FR-05..FR-08](./01-dac-ta/03-yeu-cau-chuc-nang.md) & [04-luoc-do-thong-tin-va-kich-ban-bao-ve.md](./04-thiet-ke-he-thong/04-luoc-do-thong-tin-va-kich-ban-bao-ve.md)
 │   ├── 🏛️ TẦNG 1 — CỔNG MÔN HỌC & ONBOARDING: [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx)
-│   │   ├── [Góc nhìn GVPTMH]: Quản lý Lớp học phần (`GET /api/classes`, `POST /api/classes`), Ngân hàng đề tài, Giám sát tiến độ tổng các nhóm & Nút "Đi vào Kanban nhóm"
-│   │   ├── [Góc nhìn Sinh viên chưa có nhóm]: Thẻ lựa chọn tinh gọn (Đăng ký Đề tài Cá nhân 1 SV hoặc Lập nhóm 2-3 SV)
+│   │   ├── [Góc nhìn GVPTMH]: Quản lý Lớp học phần (`GET /api/classes`, `POST /api/classes`), Ngân hàng đề tài, Xóa đề tài (`DELETE /api/topics/:id`), Giám sát tiến độ tổng các nhóm & Nút "Đi vào Kanban nhóm"
+│   │   ├── [Góc nhìn Sinh viên chưa có nhóm]: Thẻ lựa chọn tinh gọn (Đề tài 1 SV chỉ hiển thị `⚡ Xác nhận nhận đề tài` - Modal C; Đề tài nhóm mở Modal Lập nhóm D; Sinh viên đã có nhóm tự động bị làm mờ và khóa chọn)
 │   │   ├── [Góc nhìn Sinh viên đã có nhóm]: Thẻ tổng quan đồ án đang làm & Lưới Ngân hàng Đề tài tương tác đầy đủ (Huy hiệu `⭐ ĐỀ TÀI CỦA BẠN`, xem tiến độ các nhóm bạn, nút `Đi vào Bảng việc Kanban` trực tiếp trên từng đề tài)
 │   ├── 🚀 TẦNG 2 — KHÔNG GIAN CHI TIẾT WORKSPACE: Chỉ mở ra khi chọn cụ thể 1 nhóm/đề tài (Kanban, Table, Milestones)
-│   │   ├── [Nhánh 2A - Giảng viên tạo đề tài]: Modal Tạo Đề tài Đa năng (Hỗ trợ nhập nhiều đề tài cùng lúc dạng danh sách động hoặc dán văn bản hàng loạt từ Word/Excel, chọn quy mô Nhóm/Cá nhân, nạp mẫu gợi ý) ──> `POST /api/topics` (Batch/Single)
-│   │   ├── [Nhánh 2B - Sinh viên chọn Đề tài Cá nhân]: Modal Xác nhận ──> `POST /api/topics/:id/register-solo` ──> Gán `nhom_truong`
-│   │   ├── [Nhánh 2C - Sinh viên Lập Nhóm & Đăng ký]: Đặt tên nhóm, chọn thành viên, phân nhóm trưởng ──> `POST /api/topics/:id/register-team`
+│   │   ├── [Nhánh 2A - Giảng viên tạo đề tài]: Modal Tạo Đề tài Đa năng (Task B2 & B4: Nhập danh sách động, Dán hàng loạt, và Tab "📊 Import từ Excel / CSV" với parser `xlsx`, ánh xạ cột Tên đề tài/Mô tả/Số lượng SV, Preview trước khi công bố; Thiết lập quy mô linh hoạt 1..50 SV với nút tăng/giảm quy mô nhanh `[-]`/`[+]`; Cung cấp file test mẫu [danh-sach-de-tai-mau.xlsx](./test-data/danh-sach-de-tai-mau.xlsx)) ──> `POST /api/topics` (Batch/Single)
+│   │   ├── [Nhánh 2B - Sinh viên chọn Đề tài Cá nhân]: Modal C Xác nhận ──> Tự động gán sinh viên đăng nhập thực hiện (đã loại bỏ dropdown chọn SV), hiển thị thông tin cố định và khóa nếu đã có nhóm ──> `POST /api/topics/:id/register-solo` ──> Gán `nhom_truong`
+│   │   ├── [Nhánh 2C - Sinh viên Lập Nhóm & Đăng ký]: Đặt tên nhóm, chọn thành viên linh hoạt theo giới hạn đề tài, phân nhóm trưởng; Chặn & làm mờ SV đã có nhóm trong lớp (`ten_mon_hoc`) kèm nhãn `🔒 Đã thuộc [Tên nhóm]` ──> `POST /api/topics/:id/register-team`
 │   │   └── [Nhánh 2D - Đặt lại trạng thái đề tài trống]: Nút "Đặt lại trống" ──> `POST /api/topics/:id/reset`
 │   └── Điều hướng 2 chiều: Nút `🏫 ← Quay lại Cổng Môn học` trên [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) & [Header.jsx](./07-nguon-code/demo-giao-dien/src/components/Header.jsx)
 │
@@ -111,10 +111,11 @@
 │   └── API & CSDL: `GET /api/notifications?userId=:id` ──> Bảng `thong_bao`
 │
 └── 7️⃣ KẾT NỐI GITHUB DASHBOARD, TINH GIẢN CỔNG LỚP & KHUNG HƯỚNG DẪN DÀI HẠN
-    ├── Phân công Nhóm: [PHAN-CONG-TASK-NHOM.md](./00-ke-hoach/PHAN-CONG-TASK-NHOM.md) (Phần 1: TDMHorizon · Phần 2: Sixduy)
-    ├── Giao diện Tinh giản Cổng Lớp & Sidebar: [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) & [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) (Sidebar bỏ danh sách nhóm trùng lặp; GV 1 dòng tóm tắt lớp + 1 Bảng Tổng hợp duy nhất; SV 1 Thẻ trạng thái + Modal Chi tiết)
+    ├── Phân công Nhóm: [PHAN-CONG-TASK-NHOM.md](./00-ke-hoach/PHAN-CONG-TASK-NHOM.md) (Phần 1: TDMHorizon · Phần 2: Sixduy — Đã review & hợp nhất PR #3)
+    ├── Giao diện Tinh giản Cổng Lớp & Sidebar (Task A0 + Bổ sung): [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) & [Sidebar.jsx](./07-nguon-code/demo-giao-dien/src/components/Sidebar.jsx) (Sidebar bỏ danh sách nhóm trùng lặp; GV 1 dòng tóm tắt lớp + 1 Bảng Tổng hợp duy nhất; SV 1 Thẻ trạng thái + Modal Chi tiết)
+    ├── Quy tắc Thành viên & Import Excel (Task B2, B3, B4, B5 — Chuẩn hóa sau PR #3): [ClassroomPortalView.jsx](./07-nguon-code/demo-giao-dien/src/components/ClassroomPortalView.jsx) & [server.js](./07-nguon-code/demo-giao-dien/server.js) (Min = 1 & Max = Không giới hạn/tùy chọn qua `getTopicScaleInfo`, Chặn & làm mờ SV đã có nhóm qua `assignedStudentMap`, Xóa đề tài `DELETE /api/topics/:id` trong Modal Chi tiết, Import Excel/CSV `xlsx` hỗ trợ 3 cột ánh xạ, gắn neo tour `data-tour-id`)
     ├── Dashboard Tiến độ GitHub (Task A2): [GitHubDashboardView.jsx](./07-nguon-code/demo-giao-dien/src/components/GitHubDashboardView.jsx) (Dòng thời gian Commit, Push theo thành viên, Pull Requests, Branches)
-    ├── Khung Hướng dẫn Sử dụng Dài hạn (Task A3): [guideConfig.js](./07-nguon-code/demo-giao-dien/src/constants/guideConfig.js) (`GUIDE_TOUR_ENABLED = false` - Chờ chốt toàn bộ tính năng)
+    ├── Khung Hướng dẫn Sử dụng Dài hạn (Task A3, B5): [guideConfig.js](./07-nguon-code/demo-giao-dien/src/constants/guideConfig.js) (`REGISTERED_TOUR_TARGETS` gắn các neo DOM `data-tour-id`)
     └── API & CSDL Phụ trợ (Task A1): `GET/POST/DELETE /api/github/*` ──> Bảng phụ trợ `lien_ket_github` (Cache JSON + Ánh xạ GitHub Username, giữ nguyên 9 bảng BCNF)
 ```
 
@@ -142,7 +143,7 @@
     │   └── Dữ liệu mẫu ([initDb.js](./07-nguon-code/demo-giao-dien/src/db/initDb.js)): `u-gv-01` (GVHD) + 5 Sinh viên (`u-sv-01`..`u-sv-05`)
     ├── Bảng 2: `do_an` (Quan hệ R2: H -> I, J, K)
     │   ├── Khóa chính: `ma_do_an` | Khóa ngoại: `ma_giang_vien` -> `nguoi_dung`
-    │   └── Biểu diễn Ngân hàng đề tài: Đề tài Nhóm (`[NHÓM 2-3 SV]`) & Đề tài Cá nhân (`[CÁ NHÂN 1 SV]`)
+    │   └── Biểu diễn Ngân hàng đề tài: Lưu siêu dữ liệu trong `noi_dung_muc_tieu` (Đề tài Tự động nâng/hạ quy mô `[SL: 1-N]`, `[NHÓM 2-3 SV]`, hoặc Đề tài Cá nhân `[CÁ NHÂN 1 SV]`) bảo toàn nguyên vẹn 9 bảng BCNF
     ├── Bảng 3: `nhom` (Quan hệ R3: M -> N, H và H -> M)
     │   ├── Khóa chính: `ma_nhom` | Khóa ngoại Unique (1-1): `ma_do_an` -> `do_an`
     │   └── Quy ước trạng thái: Chưa có dòng trong `nhom` = Đề tài đang mở đăng ký; Có dòng = Đã nhận đề tài
@@ -183,6 +184,7 @@
 │   ├── `getUsers(projectId)`           ───> `GET  /api/users?projectId=:id`
 │   ├── `getTopics()`                   ───> `GET  /api/topics`
 │   ├── `createTopic(data)`             ───> `POST /api/topics` (Hỗ trợ tạo đơn lẻ hoặc danh sách mảng nhiều đề tài cùng lúc)
+│   ├── `deleteTopic(id)`               ───> `DELETE /api/topics/:id` (Xóa cascade đề tài, nhóm, công việc, bình luận, file đính kèm, thông báo liên quan)
 │   ├── `registerSoloTopic(id, userId)` ───> `POST /api/topics/:id/register-solo`
 │   ├── `registerTeamTopic(id, data)`   ───> `POST /api/topics/:id/register-team`
 │   ├── `resetTopicRegistration(id)`    ───> `POST /api/topics/:id/reset`
@@ -207,7 +209,7 @@
 │
 ├── 🗄️ CSDL Phụ trợ GitHub: Bảng `lien_ket_github` (Cache JSON Snapshot + Mapping Thành viên; giữ nguyên 9 bảng chuẩn BCNF)
 │
-├── 🖥️ TẦNG BACKEND SERVER: [server.js](./07-nguon-code/demo-giao-dien/server.js) (Node.js HTTP + `node:sqlite`, 28 REST Endpoints Port 4173)
+├── 🖥️ TẦNG BACKEND SERVER: [server.js](./07-nguon-code/demo-giao-dien/server.js) (Node.js HTTP + `node:sqlite`, 29 REST Endpoints Port 4173)
 │   ├── `recalculateProjectProgress(projectId)` (Tự động tính `AVG(phan_tram_tien_do)` cập nhật vào `do_an.tien_do_tong`)
 │   ├── `parseTopicMeta(noiDung)` (Phân tích nhãn `[CÁ NHÂN 1 SV]` / `[NHÓM 2-3 SV]` không phá vỡ schema BCNF)
 │   ├── `parseGithubRepoUrl` / `fetchGithubSnapshot` / `buildGithubDashboardResponse` (Đồng bộ & Cache JSON GitHub REST API + Mapping `GitHub Username ↔ Thành viên`)
@@ -356,7 +358,7 @@ flowchart TB
     │   ├── [THONG-TIN-NGHIEP-VU.md](./00-ke-hoach/THONG-TIN-NGHIEP-VU.md)
     │   ├── [KE-HOACH-TONG.md](./00-ke-hoach/KE-HOACH-TONG.md)
     │   ├── [CHO-DUYET.md](./00-ke-hoach/CHO-DUYET.md)
-    │   └── [PHAN-CONG-TASK-NHOM.md](./00-ke-hoach/PHAN-CONG-TASK-NHOM.md) (Chia 2 phần TDMHorizon & Sixduy)
+    │   └── [PHAN-CONG-TASK-NHOM.md](./00-ke-hoach/PHAN-CONG-TASK-NHOM.md) (Chia 2 phần TDMHorizon & Sixduy - Đã hoàn thành Task B2, B3, B4, B5)
     │
     ├── 📂 01-dac-ta/ (Đặc tả yêu cầu phần mềm)
     │   ├── [01-y-tuong.md](./01-dac-ta/01-y-tuong.md)
@@ -390,6 +392,10 @@ flowchart TB
     │   ├── [03-man-hinh-du-kien.md](./04-thiet-ke-he-thong/03-man-hinh-du-kien.md)
     │   └── [04-luoc-do-thong-tin-va-kich-ban-bao-ve.md](./04-thiet-ke-he-thong/04-luoc-do-thong-tin-va-kich-ban-bao-ve.md) (IFD, Mapping BCNF, Sequence & Kịch bản Bảo vệ)
     │
+    ├── 📂 test-data/ (Dữ liệu mẫu kiểm thử)
+    │   ├── [danh-sach-de-tai-mau.xlsx](./test-data/danh-sach-de-tai-mau.xlsx) (15 đề tài mẫu phân hóa chuyên ngành CNTT phục vụ test import Excel)
+    │   └── [danh-sach-de-tai-mau.csv](./test-data/danh-sach-de-tai-mau.csv) (Phiên bản CSV UTF-8 with BOM mở trực tiếp trong Excel)
+    │
     └── 📂 07-nguon-code/demo-giao-dien/ (Ứng dụng Fullstack React 19 + Node.js + SQLite)
         ├── [package.json](./07-nguon-code/demo-giao-dien/package.json) & [vite.config.js](./07-nguon-code/demo-giao-dien/vite.config.js)
         ├── [index.html](./07-nguon-code/demo-giao-dien/index.html)
@@ -404,7 +410,7 @@ flowchart TB
             ├── 📂 context/
             │   └── [ProjectContext.jsx](./07-nguon-code/demo-giao-dien/src/context/ProjectContext.jsx) (State toàn cục, Multi-project, RBAC & Actions)
             ├── 📂 services/
-            │   └── [apiService.js](./07-nguon-code/demo-giao-dien/src/services/apiService.js) (26 hàm giao tiếp REST API & GitHub)
+            │   └── [apiService.js](./07-nguon-code/demo-giao-dien/src/services/apiService.js) (27 hàm giao tiếp REST API & GitHub)
             ├── 📂 db/
             │   ├── [schema.sql](./07-nguon-code/demo-giao-dien/src/db/schema.sql) (DDL 9 bảng SQLite)
             │   └── [initDb.js](./07-nguon-code/demo-giao-dien/src/db/initDb.js) (Khởi tạo & Seed Lớp học phần, Đề tài & GitHub Demo)
