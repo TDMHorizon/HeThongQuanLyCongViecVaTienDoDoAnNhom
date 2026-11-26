@@ -535,7 +535,7 @@ const server = http.createServer(async (req, res) => {
       // Tạo công việc mẫu ban đầu cho Nhóm trưởng và Thành viên trong Mốc 1
       const firstMs = db.prepare(`SELECT ma_moc FROM moc_tien_do WHERE ma_do_an = ? ORDER BY han_hoan_thanh ASC LIMIT 1`).get(topicId);
       if (firstMs) {
-        const secondMemberId = allUniqueIds.find(id => id !== leaderId) || leaderId;
+        const secondMemberId = allUniqueIds.find(id => id !== effectiveLeaderId) || effectiveLeaderId;
         const insertTask = db.prepare(`
           INSERT INTO cong_viec (
             ma_cong_viec, ma_do_an, ma_moc, tieu_de, noi_dung_mo_ta,
@@ -547,13 +547,13 @@ const server = http.createServer(async (req, res) => {
           `cv-${Date.now()}-1`, topicId, firstMs.ma_moc,
           'Thống nhất phân công nhiệm vụ nhóm & Đặc tả yêu cầu đề tài',
           `Nhóm trưởng triển khai kế hoạch thực hiện đề tài "${topic.ten_do_an}" cho các thành viên.`,
-          'dang_lam', 50.0, '2026-10-12', leaderId, leaderId
+          'dang_lam', 50.0, '2026-10-12', effectiveLeaderId, effectiveLeaderId
         );
         insertTask.run(
           `cv-${Date.now()}-2`, topicId, firstMs.ma_moc,
           'Thiết kế sơ đồ Use Case và lược đồ CSDL chuẩn BCNF',
           'Phối hợp hoàn thiện tài liệu thiết kế hệ thống và chuẩn bị báo cáo tiến độ mốc 1.',
-          'can_lam', 0.0, '2026-10-20', secondMemberId, leaderId
+          'can_lam', 0.0, '2026-10-20', secondMemberId, effectiveLeaderId
         );
         recalculateProjectProgress(topicId);
       }

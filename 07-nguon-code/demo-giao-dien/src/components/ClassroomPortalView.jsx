@@ -4,9 +4,24 @@ import { useProject } from '../context/ProjectContext.jsx';
 import { getInitials } from '../utils/formatters.js';
 import { CHIBI_ASSETS } from '../constants/chibiAssets.js';
 
+// Helper parse giá trị ô Số lượng SV khi Import Excel / CSV
+function parseMaxMembersCell(rawVal) {
+  if (rawVal === undefined || rawVal === null) return null;
+  const text = String(rawVal).trim();
+  if (!text) return null;
+  if (/không giới hạn|unlimited|∞/i.test(text)) {
+    return { isUnlimited: true, maxMembers: null };
+  }
+  const numMatch = text.match(/(\d+)/);
+  if (numMatch) {
+    return { isUnlimited: false, maxMembers: Math.max(1, parseInt(numMatch[1], 10)) };
+  }
+  return null;
+}
+
 // Helper tính toán quy mô đề tài tự động nâng/hạ linh hoạt theo số lượng thành viên thực tế hoặc hạn mức tối đa
 export function getTopicScaleInfo(topic) {
-  if (!topic) return { label: 'Đề tài', isSolo: false, count: 1, color: '#6d28d9', bg: '#f3e8ff' };
+  if (!topic) return { label: 'Đề tài', isSolo: false, isUnlimited: false, count: 1, color: '#6d28d9', bg: '#f3e8ff' };
 
   // 1. Nếu đề tài ĐÃ CÓ NHÓM ĐĂNG KÝ: Tự động nâng/hạ quy mô theo số lượng thành viên thực tế của nhóm
   if (topic.da_dang_ky && topic.team) {
@@ -16,6 +31,7 @@ export function getTopicScaleInfo(topic) {
       return {
         label: 'Cá nhân (1 SV)',
         isSolo: true,
+        isUnlimited: false,
         count: 1,
         color: '#0369a1',
         bg: '#e0f2fe'
@@ -24,18 +40,31 @@ export function getTopicScaleInfo(topic) {
     return {
       label: `Nhóm (${count} SV)`,
       isSolo: false,
+      isUnlimited: Boolean(topic.is_unlimited),
       count,
       color: '#6d28d9',
       bg: '#f3e8ff'
     };
   }
 
-  // 2. Nếu đề tài CHƯA CÓ NHÓM (Còn trống): Hiển thị hạn mức linh hoạt theo cấu hình Giảng viên đã đặt
+  // 2. Nếu đề tài CHƯA CÓ NHÓM (Còn trống): Min = 1, Max = Không giới hạn hoặc số GV cấu hình
+  if (topic.is_unlimited) {
+    return {
+      label: 'Nhóm (1 - ∞ SV)',
+      isSolo: false,
+      isUnlimited: true,
+      count: null,
+      color: '#6d28d9',
+      bg: '#f3e8ff'
+    };
+  }
+
   const max = Number(topic.so_luong_toi_da) || 3;
   if (max === 1 || topic.quy_mo === 'ca_nhan') {
     return {
       label: 'Cá nhân (1 SV)',
       isSolo: true,
+      isUnlimited: false,
       count: 1,
       color: '#0369a1',
       bg: '#e0f2fe'
@@ -45,6 +74,7 @@ export function getTopicScaleInfo(topic) {
   return {
     label: `Nhóm (1-${max} SV)`,
     isSolo: false,
+    isUnlimited: false,
     count: max,
     color: '#6d28d9',
     bg: '#f3e8ff'
@@ -98,10 +128,10 @@ export default function ClassroomPortalView() {
   // Chế độ nhập đề tài: 'rows' (Nhiều dòng linh hoạt) | 'bulk' (Dán danh sách nhanh) | 'excel' (Import từ Excel/CSV)
   const [topicInputMode, setTopicInputMode] = useState('rows');
 
-  // Danh sách các dòng đề tài nhập cùng lúc (cho phép thêm nhiều đề tài cho 1 lớp)
+  // Danh sách các dòng đề tài nhập cùng lúc (Min = 1, Max = Không giới hạn hoặc số tùy chọn)
   const [topicRows, setTopicRows] = useState([
-    { id: 1, ten_do_an: '', so_luong_toi_da: 3, noi_dung_muc_tieu: '' },
-    { id: 2, ten_do_an: '', so_luong_toi_da: 1, noi_dung_muc_tieu: '' }
+    { id: 1, ten_do_an: '', so_luong_toi_da: 3, is_unlimited: false, noi_dung_muc_tieu: '' },
+    { id: 2, ten_do_an: '', so_luong_toi_da: 1, is_unlimited: false, noi_dung_muc_tieu: '' }
   ]);
 
   // Task B4: State quản lý file Excel / CSV tải lên và ánh xạ cột
@@ -111,7 +141,9 @@ export default function ClassroomPortalView() {
   const [excelMapping, setExcelMapping] = useState({
     topicCol: '',
     descCol: '__NONE__',
-    maxMembers: 3
+    maxCol: '__DEFAULT__',
+    maxMembers: 3,
+    isUnlimited: false
   });
   const [excelError, setExcelError] = useState('');
 
@@ -255,6 +287,7 @@ export default function ClassroomPortalView() {
     try {
       setSubmitting(true);
       await deleteTopic(topic.ma_do_an);
+      setDetailTopicModal(null);
       alert(`Đã xóa thành công đề tài "${topic.ten_do_an}"!`);
     } catch (err) {
       alert(`Lỗi khi xóa đề tài: ${err.message}`);
@@ -294,6 +327,7 @@ export default function ClassroomPortalView() {
         id: Date.now() + Math.random(),
         ten_do_an: '',
         so_luong_toi_da: prev.length % 2 === 0 ? 3 : 1,
+        is_unlimited: false,
         noi_dung_muc_tieu: ''
       }
     ]);
@@ -310,31 +344,35 @@ export default function ClassroomPortalView() {
     setTopicRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
-  // Nạp 4 đề tài mẫu phong phú chuẩn CNPM cho lớp (hỗ trợ số lượng thành viên linh hoạt)
+  // Nạp 4 đề tài mẫu phong phú chuẩn CNPM cho lớp (hỗ trợ số lượng thành viên linh hoạt & không giới hạn)
   const handleLoadSampleTopics = () => {
     setTopicRows([
       {
         id: Date.now() + 1,
         ten_do_an: 'Xây dựng cổng tra cứu thông tin học vụ và lịch thi tích hợp AI Chatbot',
         so_luong_toi_da: 3,
+        is_unlimited: false,
         noi_dung_muc_tieu: 'Hệ thống web SPA hỗ trợ sinh viên tra cứu điểm thi, học phí và hỏi đáp quy chế học vụ qua AI.'
       },
       {
         id: Date.now() + 2,
         ten_do_an: 'Hệ thống quản lý điểm rèn luyện và hoạt động phong trào sinh viên',
-        so_luong_toi_da: 5,
-        noi_dung_muc_tieu: 'Nền tảng trực tuyến chấm điểm rèn luyện minh bạch, duyệt minh chứng tham gia phong trào Khoa CNTT.'
+        so_luong_toi_da: null,
+        is_unlimited: true,
+        noi_dung_muc_tieu: 'Nền tảng trực tuyến chấm điểm rèn luyện minh bạch, duyệt minh chứng tham gia phong trào Khoa CNTT (mở rộng không giới hạn số lượng thành viên).'
       },
       {
         id: Date.now() + 3,
         ten_do_an: 'Ứng dụng nhắc nhở thời khóa biểu và lộ trình chứng chỉ tốt nghiệp',
         so_luong_toi_da: 1,
+        is_unlimited: false,
         noi_dung_muc_tieu: 'Module theo dõi tiến độ tích lũy chứng chỉ ngoại ngữ, tin học và cảnh báo học vụ cá nhân theo tuần.'
       },
       {
         id: Date.now() + 4,
         ten_do_an: 'Nền tảng chia sẻ tài liệu ôn tập và ngân hàng câu hỏi trắc nghiệm mã nguồn mở',
         so_luong_toi_da: 4,
+        is_unlimited: false,
         noi_dung_muc_tieu: 'Ứng dụng lưu trữ, tìm kiếm và phân quyền tải tài liệu học tập theo từng học phần.'
       }
     ]);
@@ -376,15 +414,17 @@ export default function ClassroomPortalView() {
         setExcelHeaders(headers);
         setExcelRows(rows);
 
-        // Tự động nhận diện gợi ý cột Tên đề tài:
+        // Tự động nhận diện gợi ý cột Tên đề tài, Mô tả và Số lượng / Quy mô:
         const topicCol = headers.find(h => /tên|đề tài|topic|tiêu đề|project|name/i.test(h)) || headers[0];
-        // Tự động nhận diện gợi ý cột Mô tả:
         const descCol = headers.find(h => /mô tả|nội dung|desc|yêu cầu|ghi chú|detail/i.test(h)) || '__NONE__';
+        const maxCol = headers.find(h => /quy mô|số lượng|tối đa|sl|max|members|size/i.test(h)) || '__DEFAULT__';
 
         setExcelMapping({
           topicCol,
           descCol,
-          maxMembers: 3
+          maxCol,
+          maxMembers: 3,
+          isUnlimited: false
         });
       } catch (err) {
         setExcelError(err.message || 'Lỗi khi đọc file Excel/CSV!');
@@ -420,6 +460,7 @@ export default function ClassroomPortalView() {
         id: Date.now() + idx,
         ten_do_an: line,
         so_luong_toi_da: isSolo ? 1 : 3,
+        is_unlimited: false,
         noi_dung_muc_tieu: `Xây dựng giải pháp phần mềm cho đề tài "${line}", chuẩn hóa CSDL BCNF và báo cáo nghiệm thu.`
       };
     });
@@ -445,18 +486,23 @@ export default function ClassroomPortalView() {
         return;
       }
       const descColIdx = excelMapping.descCol === '__NONE__' ? -1 : excelHeaders.indexOf(excelMapping.descCol);
+      const maxColIdx = excelMapping.maxCol === '__DEFAULT__' ? -1 : excelHeaders.indexOf(excelMapping.maxCol);
 
       formattedTopics = excelRows.map((row) => {
         const title = String(row[topicColIdx] || '').trim();
         const desc = descColIdx >= 0 ? String(row[descColIdx] || '').trim() : '';
-        const max = Math.max(1, Number(excelMapping.maxMembers) || 3);
-        const isSolo = max === 1;
+        const parsedCell = maxColIdx >= 0 ? parseMaxMembersCell(row[maxColIdx]) : null;
+        const isUnlimited = parsedCell ? parsedCell.isUnlimited : Boolean(excelMapping.isUnlimited);
+        const max = isUnlimited
+          ? null
+          : (parsedCell ? parsedCell.maxMembers : Math.max(1, Number(excelMapping.maxMembers) || 3));
+        const isSolo = !isUnlimited && max === 1;
         return {
           ten_do_an: title,
           noi_dung_muc_tieu: desc || undefined,
           quy_mo: isSolo ? 'ca_nhan' : 'nhom',
           so_luong_toi_da: max,
-          is_unlimited: false
+          is_unlimited: isUnlimited
         };
       }).filter(t => t.ten_do_an.length > 0);
     } else if (topicInputMode === 'bulk') {
@@ -486,13 +532,14 @@ export default function ClassroomPortalView() {
       formattedTopics = topicRows
         .filter(r => r.ten_do_an && r.ten_do_an.trim())
         .map(r => {
-          const max = Math.max(1, Number(r.so_luong_toi_da) || 3);
-          const isSolo = max === 1;
+          const isUnlimited = Boolean(r.is_unlimited);
+          const max = isUnlimited ? null : Math.max(1, Number(r.so_luong_toi_da) || 3);
+          const isSolo = !isUnlimited && max === 1;
           return {
             ten_do_an: r.ten_do_an.trim(),
             quy_mo: isSolo ? 'ca_nhan' : 'nhom',
             so_luong_toi_da: max,
-            is_unlimited: false,
+            is_unlimited: isUnlimited,
             noi_dung_muc_tieu: r.noi_dung_muc_tieu ? r.noi_dung_muc_tieu.trim() : undefined
           };
         });
@@ -515,8 +562,8 @@ export default function ClassroomPortalView() {
 
       // Reset về trạng thái mặc định
       setTopicRows([
-        { id: 1, ten_do_an: '', so_luong_toi_da: 3, noi_dung_muc_tieu: '' },
-        { id: 2, ten_do_an: '', so_luong_toi_da: 1, noi_dung_muc_tieu: '' }
+        { id: 1, ten_do_an: '', so_luong_toi_da: 3, is_unlimited: false, noi_dung_muc_tieu: '' },
+        { id: 2, ten_do_an: '', so_luong_toi_da: 1, is_unlimited: false, noi_dung_muc_tieu: '' }
       ]);
       setBulkText('');
       setExcelFile(null);
@@ -574,8 +621,8 @@ export default function ClassroomPortalView() {
   const handleOpenTeamModal = (topic) => {
     if (!topic) return;
 
-    // Yêu cầu cốt lõi: Nếu đề tài chỉ cho 1 sinh viên, CHỈ hiển thị xác nhận nhận đề tài, không mở modal lập nhóm!
-    if (topic.so_luong_toi_da === 1 || topic.quy_mo === 'ca_nhan') {
+    // Yêu cầu cốt lõi: Chỉ mở Modal nhận cá nhân khi đề tài không phải Không giới hạn và giới hạn = 1 SV
+    if (!topic.is_unlimited && (topic.so_luong_toi_da === 1 || topic.quy_mo === 'ca_nhan')) {
       return handleOpenSoloConfirm(topic);
     }
 
@@ -619,11 +666,13 @@ export default function ClassroomPortalView() {
     setTeamForm(prev => {
       const exists = prev.memberIds.includes(studentId);
       let nextMembers = exists ? prev.memberIds.filter(id => id !== studentId) : [...prev.memberIds, studentId];
-      // Task B2: Kiểm tra số lượng thành viên linh hoạt
-      const maxLimit = teamModalTopic?.so_luong_toi_da || 3;
-      if (nextMembers.length > maxLimit) {
-        alert(`Đề tài này chỉ cho phép tối đa ${maxLimit} sinh viên!`);
-        return prev;
+      // Task B2: Kiểm tra số lượng thành viên linh hoạt (bỏ qua giới hạn nếu is_unlimited)
+      if (!teamModalTopic?.is_unlimited) {
+        const maxLimit = teamModalTopic?.so_luong_toi_da || 3;
+        if (nextMembers.length > maxLimit) {
+          alert(`Đề tài này chỉ cho phép tối đa ${maxLimit} sinh viên!`);
+          return prev;
+        }
       }
       let nextLeader = prev.leaderId;
       if (!nextMembers.includes(nextLeader)) {
@@ -1447,7 +1496,7 @@ export default function ClassroomPortalView() {
                         style={{
                           background: 'var(--surface-raised)',
                           border: '1px solid var(--border)',
-                          borderLeft: row.so_luong_toi_da === 1 ? '4px solid #0284c7' : '4px solid #7c3aed',
+                          borderLeft: (!row.is_unlimited && row.so_luong_toi_da === 1) ? '4px solid #0284c7' : '4px solid #7c3aed',
                           borderRadius: '10px',
                           padding: '14px 16px',
                           display: 'flex',
@@ -1456,7 +1505,7 @@ export default function ClassroomPortalView() {
                           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
                         }}
                       >
-                        {/* Header của từng dòng đề tài: STT + Chọn Quy mô linh hoạt + Nút Xóa */}
+                        {/* Header của từng dòng đề tài: STT + Chọn Quy mô linh hoạt (Min 1, Max ∞ hoặc số) + Nút Xóa */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text)' }}>
                             Đề tài #{idx + 1}
@@ -1465,51 +1514,67 @@ export default function ClassroomPortalView() {
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-subtle)', borderRadius: '8px', padding: '4px 10px', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px' }}>
                               <span style={{ color: 'var(--text-muted)' }}>Quy mô:</span>
-                              <span style={{ fontWeight: 800, color: (row.so_luong_toi_da || 1) === 1 ? '#0284c7' : '#7c3aed', background: (row.so_luong_toi_da || 1) === 1 ? '#e0f2fe' : '#f3e8ff', padding: '1px 6px', borderRadius: '4px' }}>
-                                {(row.so_luong_toi_da || 1) === 1 ? 'Cá nhân (1 SV)' : `Nhóm (1-${row.so_luong_toi_da || 3} SV)`}
+                              <span style={{ fontWeight: 800, color: (!row.is_unlimited && (row.so_luong_toi_da || 1) === 1) ? '#0284c7' : '#7c3aed', background: (!row.is_unlimited && (row.so_luong_toi_da || 1) === 1) ? '#e0f2fe' : '#f3e8ff', padding: '1px 6px', borderRadius: '4px' }}>
+                                {row.is_unlimited
+                                  ? 'Nhóm (1 - ∞ SV)'
+                                  : ((row.so_luong_toi_da || 1) === 1 ? 'Cá nhân (1 SV)' : `Nhóm (1-${row.so_luong_toi_da || 3} SV)`)}
                               </span>
                             </div>
 
-                            {/* Bộ điều khiển tự động nâng / hạ quy mô */}
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              <button
-                                type="button"
-                                title="Hạ quy mô sinh viên (-1)"
-                                onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', Math.max(1, (Number(row.so_luong_toi_da) || 3) - 1))}
-                                style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
-                              >
-                                -
-                              </button>
+                            {/* Bộ điều khiển nâng / hạ quy mô hoặc Không giới hạn */}
+                            {!row.is_unlimited && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <button
+                                  type="button"
+                                  title="Hạ quy mô sinh viên (-1)"
+                                  onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', Math.max(1, (Number(row.so_luong_toi_da) || 3) - 1))}
+                                  style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  data-tour-id="topic-max-members-input"
+                                  min="1"
+                                  value={row.so_luong_toi_da || 1}
+                                  onChange={e => {
+                                    const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                    handleUpdateTopicRow(row.id, 'so_luong_toi_da', val);
+                                  }}
+                                  style={{
+                                    width: '46px',
+                                    padding: '2px 4px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--border)',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    textAlign: 'center'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  title="Nâng quy mô sinh viên (+1)"
+                                  onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', (Number(row.so_luong_toi_da) || 1) + 1)}
+                                  style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
+                                >
+                                  +
+                                </button>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>SV</span>
+                              </div>
+                            )}
+
+                            <label
+                              data-tour-id="topic-unlimited-checkbox"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: 600, color: row.is_unlimited ? '#6d28d9' : 'var(--text-muted)', cursor: 'pointer' }}
+                            >
                               <input
-                                type="number"
-                                data-tour-id="topic-max-members-input"
-                                min="1"
-                                max="50"
-                                value={row.so_luong_toi_da || 1}
-                                onChange={e => {
-                                  const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                  handleUpdateTopicRow(row.id, 'so_luong_toi_da', val);
-                                }}
-                                style={{
-                                  width: '44px',
-                                  padding: '2px 4px',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--border)',
-                                  fontSize: '11.5px',
-                                  fontWeight: 700,
-                                  textAlign: 'center'
-                                }}
+                                type="checkbox"
+                                checked={Boolean(row.is_unlimited)}
+                                onChange={e => handleUpdateTopicRow(row.id, 'is_unlimited', e.target.checked)}
+                                style={{ accentColor: '#7c3aed' }}
                               />
-                              <button
-                                type="button"
-                                title="Nâng quy mô sinh viên (+1)"
-                                onClick={() => handleUpdateTopicRow(row.id, 'so_luong_toi_da', Math.min(50, (Number(row.so_luong_toi_da) || 1) + 1))}
-                                style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
-                              >
-                                +
-                              </button>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>SV</span>
-                            </div>
+                              <span>Không giới hạn</span>
+                            </label>
 
                             {/* Nút xóa dòng nếu có từ 2 dòng trở lên */}
                             {topicRows.length > 1 && (
@@ -1691,7 +1756,7 @@ export default function ClassroomPortalView() {
                           🔍 Ánh xạ Cột & Cấu hình Nhóm cho Đề tài Import
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: '12px' }}>
                           <div>
                             <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
                               Cột Tên đề tài (* Bắt buộc):
@@ -1727,19 +1792,48 @@ export default function ClassroomPortalView() {
 
                           <div>
                             <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
-                              Quy định Số lượng SV cho đề tài:
+                              Cột Số lượng SV (Không bắt buộc):
                             </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Tối đa:</span>
-                              <input
-                                type="number"
-                                min="1"
-                                max="50"
-                                value={excelMapping.maxMembers}
-                                onChange={e => setExcelMapping(prev => ({ ...prev, maxMembers: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
-                                style={{ width: '56px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', borderRadius: '4px', border: '1px solid var(--border)', fontWeight: 700 }}
-                              />
-                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>SV / nhóm</span>
+                            <select
+                              className="form-select"
+                              value={excelMapping.maxCol}
+                              onChange={e => setExcelMapping(prev => ({ ...prev, maxCol: e.target.value }))}
+                              style={{ fontSize: '12px' }}
+                            >
+                              <option value="__DEFAULT__">(Áp dụng thiết lập chung)</option>
+                              {excelHeaders.map(h => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                              Thiết lập chung (Min = 1 SV):
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                              {!excelMapping.isUnlimited && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Tối đa:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={excelMapping.maxMembers}
+                                    onChange={e => setExcelMapping(prev => ({ ...prev, maxMembers: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                                    style={{ width: '54px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', borderRadius: '4px', border: '1px solid var(--border)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>SV</span>
+                                </div>
+                              )}
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: excelMapping.isUnlimited ? '#6d28d9' : 'var(--text-muted)', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(excelMapping.isUnlimited)}
+                                  onChange={e => setExcelMapping(prev => ({ ...prev, isUnlimited: e.target.checked }))}
+                                  style={{ accentColor: '#7c3aed' }}
+                                />
+                                <span>Không giới hạn (∞)</span>
+                              </label>
                             </div>
                           </div>
                         </div>
@@ -1755,19 +1849,23 @@ export default function ClassroomPortalView() {
                                 <tr style={{ background: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
                                   <th style={{ padding: '6px 10px', textAlign: 'left', width: '40px' }}>STT</th>
                                   <th style={{ padding: '6px 10px', textAlign: 'left' }}>Tên đề tài trích xuất</th>
-                                  <th style={{ padding: '6px 10px', textAlign: 'left', width: '140px' }}>Quy mô áp dụng</th>
+                                  <th style={{ padding: '6px 10px', textAlign: 'left', width: '150px' }}>Quy mô áp dụng</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {excelRows.slice(0, 5).map((r, i) => {
                                   const tCol = excelHeaders.indexOf(excelMapping.topicCol);
+                                  const mCol = excelMapping.maxCol === '__DEFAULT__' ? -1 : excelHeaders.indexOf(excelMapping.maxCol);
                                   const title = tCol >= 0 ? String(r[tCol] || '').trim() : '';
+                                  const parsedCell = mCol >= 0 ? parseMaxMembersCell(r[mCol]) : null;
+                                  const rowIsUnlimited = parsedCell ? parsedCell.isUnlimited : Boolean(excelMapping.isUnlimited);
+                                  const rowMax = rowIsUnlimited ? null : (parsedCell ? parsedCell.maxMembers : Math.max(1, Number(excelMapping.maxMembers) || 3));
                                   return (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                       <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{i + 1}</td>
                                       <td style={{ padding: '6px 10px', fontWeight: 600 }}>{title || <em style={{ color: '#ef4444' }}>(Dòng trống)</em>}</td>
                                       <td style={{ padding: '6px 10px', color: '#7c3aed', fontWeight: 600 }}>
-                                        {excelMapping.maxMembers === 1 ? 'Cá nhân (1 SV)' : `Nhóm (${excelMapping.maxMembers} SV)`}
+                                        {rowIsUnlimited ? 'Nhóm (1 - ∞ SV)' : (rowMax === 1 ? 'Cá nhân (1 SV)' : `Nhóm (1-${rowMax} SV)`)}
                                       </td>
                                     </tr>
                                   );
@@ -1895,7 +1993,11 @@ export default function ClassroomPortalView() {
                 <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '10px', padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase' }}>
-                      {teamModalTopic.so_luong_toi_da === 1 ? 'Đề tài Cá nhân (1 Sinh viên)' : `Đề tài Nhóm (Tối đa ${teamModalTopic.so_luong_toi_da || 3} Sinh viên)`}
+                      {teamModalTopic.is_unlimited
+                        ? 'Đề tài Nhóm (Tối thiểu 1 SV • Không giới hạn)'
+                        : (teamModalTopic.so_luong_toi_da === 1
+                            ? 'Đề tài Cá nhân (1 Sinh viên)'
+                            : `Đề tài Nhóm (Tối đa ${teamModalTopic.so_luong_toi_da || 3} Sinh viên)`)}
                     </div>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: teamForm.memberIds.length <= 1 ? '#0284c7' : '#7c3aed', background: teamForm.memberIds.length <= 1 ? '#e0f2fe' : '#f3e8ff', padding: '2px 8px', borderRadius: '999px' }}>
                       Quy mô nhóm: {teamForm.memberIds.length <= 1 ? 'Cá nhân (1 SV)' : `Nhóm (${teamForm.memberIds.length} SV)`}
@@ -1922,7 +2024,7 @@ export default function ClassroomPortalView() {
                   <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>2. Chọn Thành viên & Chỉ định ai là Nhóm trưởng (*)</span>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed' }}>
-                      Đang chọn: {teamForm.memberIds.length} / {teamModalTopic.so_luong_toi_da || 3} SV
+                      Đang chọn: {teamForm.memberIds.length} / {teamModalTopic.is_unlimited ? '∞' : (teamModalTopic.so_luong_toi_da || 3)} SV
                     </span>
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
@@ -2073,7 +2175,7 @@ export default function ClassroomPortalView() {
               </div>
             </div>
             <div className="modal-footer" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {isLecturer && detailTopicModal.da_dang_ky && detailTopicModal.ma_do_an !== 'da-dacs-01' && (
                   <button
                     type="button"
@@ -2085,9 +2187,20 @@ export default function ClassroomPortalView() {
                         resetTopicRegistration(targetId);
                       }
                     }}
-                    style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                    style={{ color: '#b45309', borderColor: '#fde68a' }}
                   >
                     Đặt lại về trống
+                  </button>
+                )}
+                {isLecturer && detailTopicModal.ma_do_an !== 'da-dacs-01' && (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={submitting}
+                    onClick={() => handleDeleteTopic(detailTopicModal)}
+                    style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                  >
+                    🗑️ Xóa đề tài
                   </button>
                 )}
               </div>

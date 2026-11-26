@@ -20,6 +20,7 @@ export const REGISTERED_TOUR_TARGETS = [
   'excel-dropzone',
   'excel-column-mapping',
   'topic-max-members-input',
+  'topic-unlimited-checkbox',
   'team-member-disabled',
   'tour-gv-groups-tab',
   'tour-sv-status-card',

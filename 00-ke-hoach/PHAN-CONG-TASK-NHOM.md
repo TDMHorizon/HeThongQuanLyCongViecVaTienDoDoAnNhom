@@ -22,7 +22,23 @@
   - Dòng thời gian "Đã làm được gì" (gom commit theo ngày, lọc theo thành viên/nhánh, mở commit gốc trên GitHub).
 - [x] **Task A3 — Task Dài hạn (Đặt khung trước, chưa code UI):**
   - Tạo `src/constants/guideConfig.js` định nghĩa cấu trúc bước hướng dẫn sử dụng theo vai trò; chờ chốt toàn bộ dự án mới viết nội dung và gắn Popup Tour.
-- [ ] **Task A4 — Review & Merge PR của `Sixduy`:** Kiểm thử tích hợp và giữ lịch sử GitHub chỉ gồm 2 Contributors (`TDMHorizon` & `Sixduy`).
+- [x] **Task A4 — Review & Merge PR của `Sixduy`:** Đã kiểm thử tích hợp PR #3 (`44131fe`), giữ lịch sử GitHub gồm đúng 2 Contributors (`TDMHorizon` & `Sixduy`) và chuẩn hóa lại các điểm lệch yêu cầu bên dưới.
+
+---
+
+## NHẬT KÝ REVIEW & KHẮC PHỤC PR #3 (`Sixduy` — Commit `44131fe`)
+
+- **Các phần `Sixduy` hoàn thành tốt:**
+  1. Tách nhánh riêng đúng quy định (`Sixduy:feature/sixduy-excel-team-rules`), không tự ý push lên `master`.
+  2. **Task B3:** Khóa & làm mờ SV đã có nhóm (`assignedStudentMap`) trên UI và chặn trùng theo `ten_mon_hoc` trả `HTTP 400` ở `server.js`.
+  3. **Task B4:** Cài `xlsx` (`^0.18.5`), tạo tab Import Excel/CSV + đọc sheet đầu + kèm file test mẫu `danh-sach-de-tai-mau.xlsx` / `.csv`.
+  4. **Task B5 & Làm thêm:** Gắn đầy đủ `data-tour-id` vào `guideConfig.js`, thêm API `DELETE /api/topics/:id` xóa cascade sạch sẽ, và tự gán SV đang đăng nhập ở Modal nhận đề tài 1 SV.
+
+- **Các vấn đề phát hiện ở PR #3 & Cách đã chuẩn hóa lại trên `master`:**
+  1. **Tự ý bỏ tùy chọn "Không giới hạn (`∞`)" (lệch Task B2):** Dù `server.js` đã hỗ trợ `[SL: 1-∞]`, giao diện của `Sixduy` lại bỏ checkbox *Không giới hạn* và ép `max="50"` (đồng thời `handleToggleMember` fallback `|| 3` gây khóa nhầm ở 3 SV). $\Rightarrow$ **Đã khôi phục** checkbox `Không giới hạn SV (∞)` ở cả nhập từng dòng lẫn Import Excel, sửa `getTopicScaleInfo` & `handleToggleMember` cho phép chọn tự do từ `1` đến `∞` SV.
+  2. **Thiếu cột ánh xạ "Số lượng SV" khi Import Excel (lệch Task B4):** Bản PR #3 chỉ mới cho map `Tên đề tài` + `Mô tả`, áp cứng 1 con số chung cho toàn bộ file. $\Rightarrow$ **Đã bổ sung** dropdown *Cột Số lượng SV tối đa (Không bắt buộc)* hỗ trợ đọc cột Quy mô có sẵn từ file Excel hoặc dùng thiết lập chung.
+  3. **Xung đột với Giao diện Giảng viên tối giản mới (`ClassroomPortalView.jsx`):** PR #3 viết trên giao diện 3 tab cũ của GV và đặt nút Xóa ngay ngoài bảng. $\Rightarrow$ **Đã tích hợp sạch** giữ nguyên Sidebar tinh giản + 1 Bảng Tổng hợp Lớp duy nhất, chuyển nút **`🗑️ Xóa đề tài`** gọn vào trong **Modal Chi tiết (`MODAL E`)**.
+  4. **Sai lệch nhỏ trong `server.js` (`register-team`):** Khi `leaderId` không truyền lên, câu lệnh tạo công việc mẫu dùng `leaderId` thay vì `effectiveLeaderId`. $\Rightarrow$ **Đã sửa** sang `effectiveLeaderId`.
 
 ---
 
@@ -61,9 +77,9 @@
 
 ### - [x] Task B5: Gắn điểm neo `data-tour-id`
 * Đã gắn đầy đủ thuộc tính `data-tour-id` lên các nút Import Excel (`tab-import-excel`, `excel-dropzone`, `excel-column-mapping`), ô cấu hình số lượng thành viên (`topic-max-members-input`) và thẻ sinh viên bị khóa (`team-member-disabled`), đồng thời đăng ký vào `guideConfig.js`.
-* **Hoàn thiện các yêu cầu nâng cao (Phiên bổ sung):**
-  1. Loại bỏ hoàn toàn tùy chọn/checkbox "Không giới hạn (∞)" tại cả form tạo đề tài theo dòng và mapping file Excel/CSV, bắt buộc Giảng viên quy định số lượng SV tối đa cụ thể.
-  2. Bổ sung nút "🗑️ Xóa" đề tài trực tiếp trên cột THAO TÁC của bảng Ngân hàng Đề tài (Tab 2 Giảng viên), tích hợp endpoint cascade `DELETE /api/topics/:id` và hộp thoại cảnh báo trước khi xóa.
-  3. Đề tài cá nhân 1 sinh viên (`so_luong_toi_da === 1` hoặc `quy_mo === 'ca_nhan'`): Giao diện sinh viên chỉ hiển thị nút "⚡ Xác nhận nhận đề tài" (mở Modal C xác nhận cá nhân), tuyệt đối không mở Modal Lập nhóm D.
-  4. Quét trạng thái đề tài và nhóm theo thời gian thực qua `assignedStudentMap`: Tự động làm mờ (`opacity: 0.45`, `pointerEvents: 'none'`) và khóa checkbox `disabled` tất cả sinh viên đã có nhóm trong Modal Lập nhóm D, đồng thời vô hiệu hóa trong dropdown của Modal C.
-  5. Cơ chế Tự động nâng/hạ quy mô đề tài (`getTopicScaleInfo`): Không còn bị fix cứng ở con số 3 SV. Khi đề tài đã có nhóm đăng ký, huy hiệu tự động co giãn hiển thị chính xác số lượng thực tế của nhóm (`Cá nhân (1 SV)`, `Nhóm (2 SV)`, `Nhóm (3 SV)`, `Nhóm (N SV)`); khi đề tài còn trống hiển thị theo hạn mức cấu hình (`Nhóm (1-N SV)`) với bộ điều khiển tăng/giảm `[-]` `[+]` trực quan; Modal Lập nhóm D tự động phản ánh quy mô nhóm co giãn tức thì theo số thành viên đang được tick chọn.
+* **Các điểm bổ sung từ PR #3 & Hoàn thiện sau Review (A4):**
+  1. Giữ nguyên tùy chọn **`Không giới hạn SV (∞)`** song song với nhập số lượng tối đa (`Min = 1`, `Max = Không giới hạn` hoặc số tùy ý) ở cả tạo từng dòng và Import Excel/CSV.
+  2. Bổ sung API `DELETE /api/topics/:id` xóa cascade sạch sẽ (giữ khóa bảo vệ `da-dacs-01`) và đặt nút **`🗑️ Xóa đề tài`** gọn gàng trong **Modal Chi tiết (`MODAL E`)** của Giảng viên.
+  3. Đề tài 1 sinh viên (`!is_unlimited && (so_luong_toi_da === 1 || quy_mo === 'ca_nhan')`): Giao diện sinh viên mở thẳng Modal Xác nhận cá nhân (`Modal C`), tự gán tài khoản sinh viên đang thao tác.
+  4. Quét trạng thái đã có nhóm theo thời gian thực qua `assignedStudentMap`: Tự động làm mờ và khóa checkbox `disabled` tất cả sinh viên đã có nhóm trong lớp.
+  5. Bổ sung ánh xạ **`Cột Số lượng SV`** (tùy chọn) trong tab Import Excel/CSV và cơ chế hiển thị quy mô co giãn `getTopicScaleInfo` theo số lượng thực tế hoặc hạn mức `[1-∞]`.
